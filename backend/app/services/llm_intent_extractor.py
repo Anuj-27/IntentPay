@@ -3,7 +3,10 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from backend.app.schemas.intent import IntentMandate
+from backend.app.schemas.intent import (
+    DEFAULT_MERCHANT_ID,
+    IntentMandate,
+)
 from backend.app.services.intent_extractor import (
     autonomous_selection_is_explicitly_allowed,
     extract_budget_from_text,
@@ -32,6 +35,8 @@ Rules:
 7. subscription_allowed can be true only when explicitly authorized.
 8. Preserve the user's semantic intent.
 9. You only extract intent. You do not authorize or execute payments.
+10. Use the default merchant ID unless the application explicitly supplies a
+    merchant through a trusted channel.
 """
 
 
@@ -70,6 +75,8 @@ def extract_intent_with_llm(
         raise ValueError("The extracted budget does not match the user's text.")
     if intent.quantity != explicit_quantity:
         raise ValueError("The extracted quantity does not match the user's text.")
+    if intent.merchant_id != DEFAULT_MERCHANT_ID:
+        raise ValueError("The LLM selected an unauthorized merchant.")
     if (
         intent.subscription_allowed
         and not subscription_is_explicitly_allowed(message)

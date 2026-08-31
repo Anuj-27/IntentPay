@@ -11,11 +11,17 @@ from pydantic import (
 
 PreferenceLevel = Literal["ANY", "PREFERRED", "EXACT"]
 PurchasePriority = Literal["CHEAPEST", "BEST_VALUE", "HIGHEST_RATING"]
+DEFAULT_MERCHANT_ID = "MERCHANT-001"
 
 
 class IntentMandate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    merchant_id: str = Field(
+        default=DEFAULT_MERCHANT_ID,
+        min_length=1,
+        max_length=128,
+    )
     product_category: str = Field(min_length=1, max_length=100)
 
     max_budget: int = Field(gt=0)
@@ -38,6 +44,13 @@ class IntentMandate(BaseModel):
     def normalize_category(cls, value):
         if isinstance(value, str):
             return value.strip().casefold()
+        return value
+
+    @field_validator("merchant_id", mode="before")
+    @classmethod
+    def normalize_merchant_id(cls, value):
+        if isinstance(value, str):
+            return value.strip()
         return value
 
     @field_validator("brand", "color", mode="before")

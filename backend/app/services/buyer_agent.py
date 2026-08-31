@@ -1,7 +1,7 @@
 from backend.app.schemas.buyer_agent import BuyerAgentResult
 from backend.app.schemas.decision import DecisionType
 from backend.app.schemas.intent import IntentMandate
-from backend.app.schemas.product import Product
+from backend.app.schemas.merchant import MerchantContract
 from backend.app.schemas.purchase import ProposedPurchase
 
 from backend.app.services.budget_stretch import (
@@ -10,13 +10,45 @@ from backend.app.services.budget_stretch import (
 from backend.app.services.preference_engine import rank_products
 from backend.app.services.product_filter import filter_products
 from backend.app.services.tradeoff_engine import evaluate_tradeoff
+from backend.app.services.merchant_service import check_merchant_access
 
 
 def run_buyer_agent(
     intent: IntentMandate,
-    products: list[Product],
+    merchant_contract: MerchantContract,
     confirmed_product_id: str | None = None,
 ) -> BuyerAgentResult:
+    merchant_id = merchant_contract.merchant.merchant_id
+
+    if intent.merchant_id != merchant_id:
+        return BuyerAgentResult(
+            merchant_id=merchant_id,
+            decision=DecisionType.BLOCK,
+            reason_code="MERCHANT_INTENT_MISMATCH",
+            message=(
+                "The supplied merchant contract does not match "
+                "the merchant authorized by the intent."
+            ),
+        )
+
+    merchant_access = check_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "catalog_search",
+            "inventory_check",
+        ),
+    )
+
+    if not merchant_access["available"]:
+        return BuyerAgentResult(
+            merchant_id=merchant_id,
+            decision=DecisionType.BLOCK,
+            reason_code=merchant_access["reason_code"],
+            message=merchant_access["message"],
+        )
+
+    products = merchant_contract.catalog.products
+
     # --------------------------------------------------------
     # 1. Apply hard user constraints
     # --------------------------------------------------------
@@ -51,6 +83,7 @@ def run_buyer_agent(
 
     if not ranked_products:
         return BuyerAgentResult(
+            merchant_id=merchant_id,
             decision=DecisionType.BLOCK,
             reason_code="NO_VALID_PRODUCT",
             message=(
@@ -93,6 +126,7 @@ def run_buyer_agent(
 
         if selected_product is None:
             return BuyerAgentResult(
+                merchant_id=merchant_id,
                 decision=DecisionType.REASK,
                 reason_code="CONFIRMED_PRODUCT_NOT_AVAILABLE",
                 message=(
@@ -125,6 +159,7 @@ def run_buyer_agent(
             message = tradeoff_result["message"]
 
         return BuyerAgentResult(
+            merchant_id=merchant_id,
             decision=DecisionType.REASK,
             reason_code=reason_code,
             message=message,
@@ -143,7 +178,34 @@ def run_buyer_agent(
         selected_product = recommended_product
 
     # --------------------------------------------------------
-    # 9. Create the exact transaction proposal
+    # 9. Confirm that agent checkout is supported
+    # --------------------------------------------------------
+
+    checkout_access = check_merchant_access(
+        merchant_contract,
+        required_capabilities=("checkout",),
+    )
+
+    if not checkout_access["available"]:
+        return BuyerAgentResult(
+            merchant_id=merchant_id,
+            decision=DecisionType.BLOCK,
+            reason_code=checkout_access["reason_code"],
+            message=checkout_access["message"],
+            recommended_product=recommended_product,
+            selected_product=selected_product,
+            alternative_products=[
+                product
+                for product in alternative_products
+                if product.product_id != selected_product.product_id
+            ],
+            ranked_products=ranked_products,
+            rejected_products=rejected_products,
+            stretch_candidates=stretch_candidates,
+        )
+
+    # --------------------------------------------------------
+    # 10. Create the exact transaction proposal
     # --------------------------------------------------------
 
     proposed_purchase = ProposedPurchase(
@@ -158,6 +220,7 @@ def run_buyer_agent(
     )
 
     return BuyerAgentResult(
+        merchant_id=merchant_id,
         decision=DecisionType.ALLOW,
         reason_code="PURCHASE_PROPOSAL_CREATED",
         message=(

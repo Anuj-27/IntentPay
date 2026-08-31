@@ -13,6 +13,8 @@ Currently implemented and tested:
 - explicit product-selection confirmation for non-autonomous intents,
 - quantity-aware filtering, ranking, budget stretch, and trade-offs,
 - Buyer Agent orchestration with explicit recommendation and selection output,
+- validated agent-readable merchant contracts and capability discovery,
+- merchant-bound intents, catalogs, inventory, and policies,
 - Proposed Purchase and Intent Verifier,
 - Merchant Policy Engine and Trust Gate,
 - Buyer Agent and Trust Gate evaluation audit events,
@@ -22,8 +24,8 @@ Currently implemented and tested:
 - persistent audit logs,
 - automated regression tests.
 
-Real Razorpay Test Mode calls, signed Razorpay webhook verification, merchant
-capability APIs, frontend, and the larger evaluation suite remain future work.
+Real Razorpay Test Mode calls, signed Razorpay webhook verification, frontend,
+and the larger evaluation suite remain future work.
 
 ## 1. Project Name
 
@@ -1272,30 +1274,63 @@ this checkpoint, the complete test suite passes all 36 tests.
 
 ---
 
-# 35. Agent-Readable Merchant Layer
+# 35. Completed Agent-Readable Merchant Layer
 
-The merchant should expose structured information that AI agents can understand.
+The Agent-Readable Merchant Layer is implemented as a typed, validated
+merchant contract. The Buyer Agent no longer depends directly on global
+product and policy objects. It receives the catalog, inventory state,
+capabilities, and transaction policy through the merchant contract.
 
-Example capabilities:
+The contract contains:
 
-```json
-{
-  "merchant": "DemoStore",
-  "capabilities": {
-    "catalog_search": true,
-    "inventory_check": true,
-    "checkout": true,
-    "refund": true
-  },
-  "policies": {
-    "max_agent_transaction": 10000,
-    "max_auto_discount_percent": 10,
-    "human_approval_above": 7500
-  }
-}
-```
+- stable merchant identity,
+- display name and contract version,
+- explicit currency,
+- active/inactive status,
+- catalog-search capability,
+- inventory-check capability,
+- agent-checkout capability,
+- refund capability,
+- validated product catalog,
+- hard merchant transaction limit,
+- human-approval threshold.
 
-This is more powerful than asking an AI to scrape arbitrary webpage HTML.
+Capability flags default to false. A missing capability therefore fails closed
+instead of silently granting an AI agent more authority.
+
+Merchant contracts enforce these integrity rules:
+
+- the merchant profile, policy, and catalog must use the same merchant ID,
+- product IDs must be unique inside a catalog,
+- the human-review threshold cannot exceed the hard transaction limit,
+- unknown schema fields are rejected,
+- service callers receive defensive copies of registered contracts,
+- an intent is permanently bound to a merchant ID,
+- an inactive merchant cannot participate in agent commerce,
+- catalog data is not exposed when catalog access is unavailable,
+- the Buyer Agent cannot create a proposal without checkout capability,
+- direct verification and payment paths cannot bypass merchant capabilities,
+- a transaction above the merchant's hard limit is blocked,
+- a transaction above the auto-approval threshold is escalated.
+
+Implemented discovery endpoints:
+
+- `GET /merchants`
+- `GET /merchants/{merchant_id}`
+- `GET /merchants/{merchant_id}/capabilities`
+- `GET /merchants/{merchant_id}/catalog`
+
+The existing `GET /products` and `POST /products/filter` endpoints remain as
+backward-compatible aliases, but their data now comes through the default
+merchant contract.
+
+The current registry contains a validated in-memory DemoStore contract. This
+is a development adapter, not a claim that merchant onboarding or remote
+merchant synchronization is already production-ready.
+
+Level 35 includes schema, service, Buyer Agent, API, policy, bypass-prevention,
+and regression coverage. At this checkpoint, the complete suite passes all
+53 tests.
 
 ---
 
@@ -1512,7 +1547,6 @@ External commerce integration and user experience: still in progress
 
 ### Remaining major work
 
-- merchant capability APIs
 - Razorpay Test Mode
 - retries / payment uncertainty
 - upsell/cross-sell execution
@@ -1703,36 +1737,32 @@ When helping with this project:
    - secure,
    - idempotent.
 14. Before modifying an existing file, first inspect the current implementation so previously completed logic is not accidentally removed.
-15. The **Buyer Agent orchestration layer** is complete, including persisted
-    intent loading, recommendation and selection separation, Proposed Purchase
-    creation, Trust Gate evaluation, structured audit logs, and automated tests.
-    The immediate next module is the **Agent-Readable Merchant Layer**.
+15. The **Buyer Agent** and **Agent-Readable Merchant Layer** are complete.
+    Intents are merchant-bound, merchant capabilities fail closed, and every
+    payment path applies the merchant contract before authorization. The next
+    planned stage is **Protocol-Aware Design**, followed by Razorpay Test Mode.
 
 ---
 
 # 46. Immediate Next Development Step
 
-Build the Agent-Readable Merchant Layer on top of the completed Buyer Agent
-foundation. The merchant should expose structured information for:
+Complete the Protocol-Aware Design stage without claiming implementation of an
+external protocol that the repository does not actually support. Define clear
+internal boundaries for:
 
 ```text
-Merchant identity
-→ agent capabilities
-→ product catalog
-→ inventory availability
-→ checkout capabilities
-→ transaction limits
-→ human-approval thresholds
-→ refund and cancellation policies
+Intent Mandate
+→ Merchant Contract
+→ Proposed Purchase
+→ Trust Gate decision
+→ Payment execution request
+→ Provider result and webhook event
 ```
 
-The Buyer Agent should consume this structured merchant contract instead of
-depending permanently on hard-coded merchant assumptions.
-
-After the merchant layer is stable, integrate Razorpay Test Mode. The Razorpay
-phase must add signed webhook verification, provider-order reconciliation,
-timeout recovery, and end-to-end tests without weakening the existing
-deterministic authorization checks.
+After those boundaries are documented and tested, integrate Razorpay Test Mode.
+The Razorpay phase must add signed webhook verification, provider-order
+reconciliation, timeout recovery, and end-to-end tests without weakening the
+existing deterministic authorization checks.
 
 ---
 

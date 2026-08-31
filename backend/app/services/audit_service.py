@@ -94,6 +94,7 @@ def create_buyer_agent_audit_logs(
         reason_code=buyer_result.reason_code,
         amount=amount,
         details={
+            "merchant_id": buyer_result.merchant_id,
             "recommended_product_id": (
                 recommended_product_id
             ),

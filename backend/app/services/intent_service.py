@@ -42,6 +42,7 @@ def create_intent_record(
             reason_code="INTENT_CREATED",
             amount=intent.max_budget,
             details={
+                "merchant_id": intent.merchant_id,
                 "product_category": intent.product_category,
                 "quantity": intent.quantity,
                 "autonomous_selection_allowed": (

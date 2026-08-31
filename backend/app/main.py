@@ -15,13 +15,21 @@ from backend.app.services.llm_intent_extractor import (
     extract_intent_with_llm,
 )
 
-from backend.app.schemas.intent import IntentMandate, IntentSelectionRequest
+from backend.app.schemas.intent import (
+    DEFAULT_MERCHANT_ID,
+    IntentMandate,
+    IntentSelectionRequest,
+)
 from backend.app.schemas.buyer_agent import (
     BuyerAgentEvaluationResult,
     BuyerAgentResult,
 )
+from backend.app.schemas.merchant import (
+    MerchantCapabilities,
+    MerchantCatalog,
+    MerchantContract,
+)
 from backend.app.schemas.purchase import PurchaseVerificationRequest
-from backend.app.data.products import products
 
 
 from backend.app.services.product_filter import filter_products
@@ -31,8 +39,13 @@ from backend.app.services.preference_engine import rank_products
 from backend.app.services.tradeoff_engine import evaluate_tradeoff
 from backend.app.services.intent_verifier import verify_purchase
 from backend.app.services.decision_engine import make_decision
-from backend.app.data.merchant_policies import merchant_policy
 from backend.app.services.merchant_policy_engine import evaluate_merchant_policy
+from backend.app.services.merchant_service import (
+    check_merchant_access,
+    find_catalog_product,
+    find_merchant_contract,
+    list_merchant_contracts,
+)
 from backend.app.services.trust_gate import evaluate_trust_gate
 from backend.app.schemas.decision import DecisionType
 from backend.app.schemas.payment import (
@@ -82,8 +95,50 @@ def get_intent_or_404(db: Session, intent_id: str):
     return intent_record
 
 
+def get_merchant_or_404(merchant_id: str) -> MerchantContract:
+    merchant_contract = find_merchant_contract(merchant_id)
+
+    if merchant_contract is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "reason_code": "MERCHANT_NOT_FOUND",
+                "message": f"Merchant '{merchant_id}' was not found.",
+            },
+        )
+
+    return merchant_contract
+
+
+def require_merchant_access(
+    merchant_contract: MerchantContract,
+    required_capabilities=(),
+):
+    access_result = check_merchant_access(
+        merchant_contract,
+        required_capabilities=required_capabilities,
+    )
+
+    if not access_result["available"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason_code": access_result["reason_code"],
+                "message": access_result["message"],
+            },
+        )
+
+
 def evaluate_purchase_request(intent_record, purchase):
     intent = mandate_from_record(intent_record)
+    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    merchant_access_result = check_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "inventory_check",
+            "checkout",
+        ),
+    )
     selected_product_id = (
         intent_record.selected_product_id
         if intent_record.selection_confirmed
@@ -92,13 +147,14 @@ def evaluate_purchase_request(intent_record, purchase):
     verification_result = verify_purchase(
         intent,
         purchase,
-        products,
+        merchant_contract.catalog.products,
         selected_product_id=selected_product_id,
     )
     intent_decision = make_decision(verification_result)
     policy_result = evaluate_merchant_policy(
         verification_result,
-        merchant_policy,
+        merchant_contract.merchant.policy,
+        merchant_access_result=merchant_access_result,
     )
     final_decision = evaluate_trust_gate(
         intent_decision,
@@ -138,11 +194,72 @@ def health_check():
     }
 
 
+@app.get("/merchants")
+def get_merchants():
+    contracts = list_merchant_contracts()
+
+    return {
+        "count": len(contracts),
+        "merchants": [
+            contract.merchant
+            for contract in contracts
+        ],
+    }
+
+
+@app.get(
+    "/merchants/{merchant_id}",
+    response_model=MerchantContract,
+)
+def get_merchant_contract(merchant_id: str):
+    merchant_contract = get_merchant_or_404(merchant_id)
+    require_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "catalog_search",
+            "inventory_check",
+        ),
+    )
+    return merchant_contract
+
+
+@app.get(
+    "/merchants/{merchant_id}/capabilities",
+    response_model=MerchantCapabilities,
+)
+def get_merchant_capabilities(merchant_id: str):
+    return get_merchant_or_404(merchant_id).merchant.capabilities
+
+
+@app.get(
+    "/merchants/{merchant_id}/catalog",
+    response_model=MerchantCatalog,
+)
+def get_merchant_catalog(merchant_id: str):
+    merchant_contract = get_merchant_or_404(merchant_id)
+    require_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "catalog_search",
+            "inventory_check",
+        ),
+    )
+    return merchant_contract.catalog
+
+
 @app.post("/intents", status_code=201)
 def create_intent(
     intent: IntentMandate,
     db: Session = Depends(get_db),
 ):
+    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    require_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "catalog_search",
+            "inventory_check",
+        ),
+    )
     intent_record = create_intent_record(db, intent)
     return intent_to_dict(intent_record)
 
@@ -163,13 +280,17 @@ def select_intent_product(
 ):
     intent_record = get_intent_or_404(db, intent_id)
     intent = mandate_from_record(intent_record)
-    product = next(
-        (
-            catalog_product
-            for catalog_product in products
-            if catalog_product.product_id == request.product_id
+    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    require_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "catalog_search",
+            "inventory_check",
         ),
-        None,
+    )
+    product = find_catalog_product(
+        merchant_contract,
+        request.product_id,
     )
 
     if product is None:
@@ -202,7 +323,18 @@ def select_intent_product(
 
 @app.get("/products")
 def get_products():
+    merchant_contract = get_merchant_or_404(DEFAULT_MERCHANT_ID)
+    require_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "catalog_search",
+            "inventory_check",
+        ),
+    )
+    products = merchant_contract.catalog.products
+
     return {
+        "merchant_id": merchant_contract.merchant.merchant_id,
         "count": len(products),
         "products": products
     }
@@ -210,6 +342,16 @@ def get_products():
 
 @app.post("/products/filter")
 def get_allowed_products(intent: IntentMandate):
+    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    require_merchant_access(
+        merchant_contract,
+        required_capabilities=(
+            "catalog_search",
+            "inventory_check",
+        ),
+    )
+    products = merchant_contract.catalog.products
+
     allowed_products, rejected_products = filter_products(
         intent,
         products
@@ -520,6 +662,7 @@ def execute_buyer_agent(
     intent = mandate_from_record(
         intent_record
     )
+    merchant_contract = get_merchant_or_404(intent.merchant_id)
 
     # --------------------------------------------------------
     # 2. Load user-confirmed selection when it exists
@@ -537,7 +680,7 @@ def execute_buyer_agent(
 
     buyer_result = run_buyer_agent(
         intent=intent,
-        products=products,
+        merchant_contract=merchant_contract,
         confirmed_product_id=confirmed_product_id,
     )
 
@@ -570,6 +713,7 @@ def evaluate_buyer_agent_proposal(
     intent = mandate_from_record(
         intent_record
     )
+    merchant_contract = get_merchant_or_404(intent.merchant_id)
 
     confirmed_product_id = (
         intent_record.selected_product_id
@@ -583,7 +727,7 @@ def evaluate_buyer_agent_proposal(
 
     buyer_result = run_buyer_agent(
         intent=intent,
-        products=products,
+        merchant_contract=merchant_contract,
         confirmed_product_id=confirmed_product_id,
     )
 

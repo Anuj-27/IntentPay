@@ -1,17 +1,20 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class Product(BaseModel):
-    product_id: str
-    name: str
-    category: str
+    model_config = ConfigDict(extra="forbid")
 
-    price: int = Field(gt = 0)
+    product_id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=200)
+    category: str = Field(min_length=1, max_length=100)
 
-    brand: str
+    price: int = Field(gt=0)
+
+    brand: str = Field(min_length=1, max_length=100)
     color: str | None = None
 
-    rating: float = Field(ge = 0, le = 5)
+    rating: float = Field(ge=0, le=5)
 
-    features: list[str] = Field(default_factory= list)
+    features: list[str] = Field(default_factory=list)
 
     in_stock: bool = True

@@ -23,6 +23,13 @@ def evaluate_trust_gate(
             "message": intent_decision["message"]
         }
 
+    if merchant_policy_result.get("status") == "REJECTED":
+        return {
+            "decision": DecisionType.BLOCK,
+            "reason_code": merchant_policy_result["reason_code"],
+            "message": merchant_policy_result["message"],
+        }
+
     # --------------------------------
     # Merchant requires human approval
     # --------------------------------

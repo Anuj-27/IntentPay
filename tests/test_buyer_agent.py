@@ -1,7 +1,10 @@
-from backend.app.data.products import products
+from backend.app.data.merchants import demo_merchant_contract
 from backend.app.schemas.decision import DecisionType
 from backend.app.schemas.intent import IntentMandate
 from backend.app.services.buyer_agent import run_buyer_agent
+
+
+products = demo_merchant_contract.catalog.products
 
 
 def build_intent(**overrides) -> IntentMandate:
@@ -32,7 +35,7 @@ def test_autonomous_agent_creates_proposal():
 
     result = run_buyer_agent(
         intent,
-        products,
+        demo_merchant_contract,
     )
 
     assert result.decision == DecisionType.ALLOW
@@ -50,7 +53,7 @@ def test_non_autonomous_agent_requires_user_selection():
 
     result = run_buyer_agent(
         intent,
-        products,
+        demo_merchant_contract,
     )
 
     assert result.decision == DecisionType.REASK
@@ -71,7 +74,7 @@ def test_confirmed_product_is_respected():
 
     result = run_buyer_agent(
         intent,
-        products,
+        demo_merchant_contract,
         confirmed_product_id="PROD-001",
     )
 
@@ -99,7 +102,7 @@ def test_invalid_confirmed_product_requires_reask():
 
     result = run_buyer_agent(
         intent,
-        products,
+        demo_merchant_contract,
         confirmed_product_id="PROD-003",
     )
 
@@ -120,7 +123,7 @@ def test_no_valid_product_is_blocked():
 
     result = run_buyer_agent(
         intent,
-        products,
+        demo_merchant_contract,
     )
 
     assert result.decision == DecisionType.BLOCK
@@ -140,7 +143,7 @@ def test_proposed_total_uses_quantity():
 
     result = run_buyer_agent(
         intent,
-        products,
+        demo_merchant_contract,
     )
 
     assert result.decision == DecisionType.ALLOW
@@ -164,7 +167,7 @@ def test_budget_stretch_candidate_is_exposed():
 
     result = run_buyer_agent(
         intent,
-        products,
+        demo_merchant_contract,
     )
 
     stretch_product_ids = {

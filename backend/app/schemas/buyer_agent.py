@@ -62,6 +62,7 @@ class StretchCandidateResult(BaseModel):
 class BuyerAgentResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    merchant_id: str = Field(min_length=1, max_length=128)
     decision: DecisionType
     reason_code: str
     message: str
@@ -118,6 +119,7 @@ class MerchantPolicyEvaluation(BaseModel):
 
     status: Literal[
         "NOT_EVALUATED",
+        "REJECTED",
         "REVIEW_REQUIRED",
         "APPROVED",
     ]
