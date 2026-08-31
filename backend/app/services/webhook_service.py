@@ -8,6 +8,7 @@ from backend.app.services.payment_service import (
     update_payment_status,
     reconcile_payment,
     payment_to_dict,
+    payment_protocol_details,
 )
 
 from backend.app.services.audit_service import create_audit_log
@@ -18,6 +19,8 @@ def process_payment_webhook(
     event_id: str,
     payment_id: str,
     new_status: PaymentStatus,
+    provider: str = "INTERNAL_LEDGER",
+    signature_verified: bool | None = None,
 ):
     # ========================================================
     # 1. Check webhook event idempotency
@@ -33,6 +36,16 @@ def process_payment_webhook(
 
     if existing_event is not None:
 
+        duplicate_payment = find_payment_by_id(
+            db=db,
+            payment_id=payment_id,
+        )
+        protocol_details = (
+            payment_protocol_details(db, duplicate_payment)
+            if duplicate_payment is not None
+            else {}
+        )
+
         try:
             create_audit_log(
                 db=db,
@@ -45,8 +58,11 @@ def process_payment_webhook(
                 entity_id=payment_id,
                 reason_code="DUPLICATE_WEBHOOK_EVENT",
                 details={
+                    **protocol_details,
                     "event_id": event_id,
                     "requested_status": new_status.value,
+                    "provider": provider,
+                    "signature_verified": signature_verified,
                 },
             )
 
@@ -92,6 +108,8 @@ def process_payment_webhook(
                 details={
                     "event_id": event_id,
                     "requested_status": new_status.value,
+                    "provider": provider,
+                    "signature_verified": signature_verified,
                 },
             )
 
@@ -123,6 +141,8 @@ def process_payment_webhook(
                 payment_id=payment_id,
                 status=new_status.value,
                 processed=True,
+                provider=provider,
+                signature_verified=signature_verified,
             )
 
             db.add(webhook_event)
@@ -141,8 +161,11 @@ def process_payment_webhook(
                 reason_code="PAYMENT_STATUS_ALREADY_APPLIED",
                 amount=payment.amount,
                 details={
+                    **payment_protocol_details(db, payment),
                     "event_id": event_id,
                     "status": new_status.value,
+                    "provider": provider,
+                    "signature_verified": signature_verified,
                 },
             )
 
@@ -197,6 +220,8 @@ def process_payment_webhook(
                 payment_id=payment_id,
                 status=new_status.value,
                 processed=True,
+                provider=provider,
+                signature_verified=signature_verified,
             )
 
             db.add(webhook_event)
@@ -215,8 +240,11 @@ def process_payment_webhook(
                 reason_code="WEBHOOK_APPLIED",
                 amount=payment.amount,
                 details={
+                    **payment_protocol_details(db, payment),
                     "event_id": event_id,
                     "new_status": new_status.value,
+                    "provider": provider,
+                    "signature_verified": signature_verified,
                 },
             )
 
@@ -250,9 +278,12 @@ def process_payment_webhook(
             reason_code="INVALID_PAYMENT_TRANSITION",
             amount=payment.amount,
             details={
+                **payment_protocol_details(db, payment),
                 "event_id": event_id,
                 "current_status": payment.status,
                 "requested_status": new_status.value,
+                "provider": provider,
+                "signature_verified": signature_verified,
             },
         )
 

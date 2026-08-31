@@ -15,6 +15,8 @@ Currently implemented and tested:
 - Buyer Agent orchestration with explicit recommendation and selection output,
 - validated agent-readable merchant contracts and capability discovery,
 - merchant-bound intents, catalogs, inventory, and policies,
+- versioned protocol-neutral commerce contexts and correlation IDs,
+- provider-neutral payment commands and result verification,
 - Proposed Purchase and Intent Verifier,
 - Merchant Policy Engine and Trust Gate,
 - Buyer Agent and Trust Gate evaluation audit events,
@@ -22,10 +24,18 @@ Currently implemented and tested:
 - persistent payment idempotency and payment state transitions,
 - webhook replay protection,
 - persistent audit logs,
-- automated regression tests.
+- test-mode-only Razorpay Orders adapter,
+- server-side Razorpay Checkout and raw webhook signature verification,
+- Razorpay timeout recovery and verified state reconciliation,
+- recommendation-integrity and cheapest-option visibility checks,
+- audit secret redaction and safe HTTP response headers,
+- executable orchestration traces and five local demo scenarios,
+- a versioned 500-case synthetic benchmark with measured metrics,
+- 101 automated regression tests.
 
-Real Razorpay Test Mode calls, signed Razorpay webhook verification, frontend,
-and the larger evaluation suite remain future work.
+A credentialed Razorpay Test Mode smoke test, frontend, deployment, and
+production authentication/authorization remain future work. The adapter is
+implemented but no external call was made because credentials are not present.
 
 ## 1. Project Name
 
@@ -1334,30 +1344,94 @@ and regression coverage. At this checkpoint, the complete suite passes all
 
 ---
 
-# 36. Protocol-Aware Design
+# 36. Completed Protocol-Aware Design
 
-IntentPay is intended to study and borrow useful principles from emerging agentic-commerce ecosystems and protocols such as:
+IntentPay now has a versioned, provider-neutral internal commerce boundary.
+The design was reviewed against current primary protocol sources, but the
+repository does not claim conformance with any external protocol.
 
-- UAP
-- ACP
-- AP2
-- x402
+Research clarified that the commerce protocol intended by the earlier roadmap
+was **UCP (Universal Commerce Protocol)**, not "UAP." The relevant external
+design references are:
 
-We should **not claim to implement these protocols unless the project actually implements the specifications**.
+- [UCP](https://github.com/Universal-Commerce-Protocol/ucp) for interoperable
+  merchant, checkout, order, and payment-token boundaries,
+- [AP2](https://github.com/google-agentic-commerce/AP2/blob/main/docs/ap2/specification.md)
+  for deterministic authorization, checkout/payment mandates, and evidence,
+- [ACP](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol)
+  for agent-to-seller checkout lifecycle ideas,
+- [x402 v2](https://github.com/x402-foundation/x402/blob/main/specs/x402-specification-v2.md)
+  for versioned payment requirements, verification, and settlement artifacts.
 
-Instead, IntentPay can use protocol-inspired ideas such as:
+The new `GET /protocol/manifest` endpoint advertises IntentPay's real internal
+capabilities. UCP, AP2, ACP, and x402 are each explicitly marked
+`NOT_IMPLEMENTED` so a consumer cannot mistake design inspiration for tested
+protocol support.
 
-```text
-Structured intent mandate
-Machine-readable merchant capability
-Bounded authorization
-Agent-to-agent commerce
-Explicit payment authority
-```
+Each persisted intent now owns a durable protocol context containing:
+
+- internal protocol version,
+- unique correlation ID,
+- intent ID,
+- merchant ID.
+
+The correlation ID is distinct from the intent ID for newly created intents.
+The additive Alembic migration `d2e3f4a5b6c7` safely backfills existing intents
+using their already-unique intent IDs as legacy correlation IDs.
+
+Implemented protocol artifacts include:
+
+- `CommerceContext`,
+- `ProviderPaymentCommand`,
+- `ProviderPaymentResult`,
+- `ProviderResultVerification`,
+- `PaymentExecutionBoundaryResponse`,
+- `ProtocolManifest`.
+
+The payment execution response is published as a typed OpenAPI component, so
+future provider adapters can integrate against an inspectable contract rather
+than an undocumented dictionary response.
+
+Before a provider result is trusted, deterministic code verifies:
+
+- correlation ID,
+- intent ID,
+- merchant ID,
+- internal protocol version,
+- payment provider,
+- product ID,
+- authorized amount,
+- currency.
+
+Protocol context is propagated through intent creation, product selection,
+Buyer Agent decisions, Trust Gate decisions, payment creation, payment state
+changes, reconciliation, and webhook audit events. This creates a traceable
+timeline before asynchronous Razorpay events are introduced.
+
+Implemented endpoints:
+
+- `GET /protocol/manifest`
+- `GET /intents/{intent_id}/protocol-context`
+
+The only currently supported payment provider is `INTERNAL_LEDGER`. Razorpay
+will be added through the provider-neutral command/result boundary in the next
+stage.
+
+Important limitations remain explicit:
+
+- IntentPay mandates are not AP2 mandates.
+- Mandates are not yet cryptographically signed.
+- IntentPay does not expose a UCP or ACP checkout implementation.
+- IntentPay does not return x402 HTTP payment requirements.
+- IntentPay does not perform on-chain settlement.
+
+Level 36 includes schema, persistence, migration, API, provider-boundary,
+tamper-detection, audit-correlation, webhook, and regression coverage. At this
+checkpoint, the complete suite passes all 64 tests.
 
 ---
 
-# 37. Example End-to-End Future Flow
+# 37. Executable End-to-End Flow — Complete
 
 ```text
 USER
@@ -1414,7 +1488,9 @@ ALLOW REASK BLOCK  ESCALATE
 
         ↓ if ALLOW
 
-RAZORPAY TEST MODE
+PAYMENT PROVIDER BOUNDARY
+
+Internal simulator now / Razorpay Test Mode next
 
         ↓
 
@@ -1433,9 +1509,37 @@ POSTGRESQL
 AUDIT + METRICS
 ```
 
+## Implemented checkpoint
+
+The deterministic part of this flow is now executable through:
+
+```text
+POST /intents/{intent_id}/orchestrate
+```
+
+The endpoint loads the persisted mandate and merchant contract, executes the
+Buyer Agent, checks recommendation integrity, re-verifies the exact proposed
+purchase, evaluates merchant policy, runs the Trust Gate, and returns a typed
+stage trace plus the next permitted action. It is a preview: it never executes
+a payment itself. An `ALLOW` result must still be submitted separately through
+the idempotent payment boundary.
+
+The five demo scenarios can execute the complete local flow through the
+internal-ledger simulator, including state transitions, webhooks, audit logs,
+UNKNOWN reconciliation, and duplicate protection:
+
+```text
+GET  /demo/scenarios
+POST /demo/scenarios/{scenario_id}/run
+```
+
+`INTERNAL_LEDGER_SIMULATION` is displayed in every demo result and
+`real_money_moved` is always false. Razorpay Test Mode remains the next external
+integration; the project does not present a local simulation as Razorpay.
+
 ---
 
-# 38. Problems IntentPay Specifically Solves
+# 38. Problems IntentPay Specifically Solves — Enforced
 
 ## Problem 1 — AI overspending
 
@@ -1471,11 +1575,11 @@ Merchant policy is checked separately from user authorization.
 
 ## Problem 9 — Payment duplication
 
-Idempotency will prevent repeated logical actions from causing multiple charges.
+Idempotency prevents repeated logical actions from creating multiple payment records.
 
 ## Problem 10 — Ambiguous payment state
 
-IntentPay will not assume failure after a timeout.
+IntentPay does not assume failure after a timeout.
 
 ## Problem 11 — Agent mistakes
 
@@ -1483,11 +1587,34 @@ Final proposed purchase is verified again before payment.
 
 ## Problem 12 — Lack of auditability
 
-Every important money decision will have an audit trail.
+Every important implemented money decision has an audit trail.
+
+## Implemented security and privacy controls
+
+- recursively redact credential, token, signature, and idempotency fields before
+  audit persistence,
+- return `Cache-Control: no-store`, `Referrer-Policy: no-referrer`,
+  `X-Content-Type-Options: nosniff`, and `X-Frame-Options: DENY`,
+- expose `GET /safety/manifest` so enforced controls and known limitations are
+  machine-readable,
+- keep the LLM outside the final financial authorization boundary,
+- use persisted intent data as the payment source of authority,
+- keep external protocol and real-money integrations disabled by default.
+
+The design follows the least-autonomy direction of OWASP's Excessive Agency
+guidance and the measurement discipline of the NIST AI Risk Management
+Framework:
+
+- https://owasp.org/www-project-top-10-for-large-language-model-applications/2_0_vulns/LLM06_ExcessiveAgency.html
+- https://www.nist.gov/itl/ai-risk-management-framework
+
+Known limitations remain explicit: the development API does not yet implement
+end-user authentication/authorization, rate limiting, an immutable audit ledger,
+or signed Razorpay webhooks.
 
 ---
 
-# 39. Key Safety and Trust Rules
+# 39. Key Safety and Trust Rules — Enforced and Tested
 
 1. **Budget permission is not purchase permission.**
 2. **Merchant permission is not user permission.**
@@ -1500,14 +1627,33 @@ Every important money decision will have an audit trail.
 9. **Duplicate logical requests must not create duplicate financial effects.**
 10. **Every important money action should be explainable and auditable.**
 
+## Recommendation-integrity guard
+
+IntentPay now checks the Buyer Agent output before final authorization. The
+guard verifies that:
+
+- the recommendation is the deterministic top-ranked valid product,
+- the cheapest valid option remains surfaced,
+- ranked products are not duplicated,
+- a proposal belongs to the ranked valid set,
+- selected and proposed product IDs match,
+- above-budget stretch recommendations never become executable proposals,
+- quantity and subscription permissions remain unchanged,
+- non-autonomous purchases match an explicit user selection.
+
+The result is returned as `recommendation_integrity` in Buyer Agent evaluation
+and orchestration responses. Any integrity failure is fail-closed with
+`RECOMMENDATION_INTEGRITY_FAILED`.
+
 ---
 
-# 40. Current Development Progress
+# 40. Development Progress Through Level 43
 
 Approximate overall status:
 
 ```text
 Core authorization and decision foundation: implemented
+Safety evaluation and reproducible local demo: implemented
 External commerce integration and user experience: still in progress
 ```
 
@@ -1544,74 +1690,85 @@ External commerce integration and user experience: still in progress
 - optional OpenAI Structured Outputs extraction
 - automated API and service regression tests
 - dependency and environment setup documentation
+- versioned and correlated internal commerce protocol boundary
+- executable end-to-end orchestration preview
+- recommendation-integrity and cheapest-option visibility guard
+- audit secret redaction and safe response headers
+- machine-readable safety manifest
+- 500-case synthetic evaluation dataset and metrics runner
+- five executable internal-ledger demo scenarios
+- timestamped five-minute demo script
+- Razorpay Test Mode Orders adapter and Checkout options
+- server-side Checkout HMAC verification
+- raw-body Razorpay webhook HMAC and event replay protection
+- provider metadata persistence and receipt-based timeout recovery
+- architecture diagrams and final pitch
 
 ### Remaining major work
 
-- Razorpay Test Mode
-- retries / payment uncertainty
+- credentialed Razorpay Test Mode checkout and webhook smoke test
 - upsell/cross-sell execution
 - campaign orchestrator
 - frontend
 - merchant dashboard
-- synthetic evaluation dataset
-- metrics
 - deployment
-- architecture diagrams
 - 5-minute demo video
-- final pitch
+
+The code and narration script for the five-minute demo are complete; recording
+and editing the actual video remain a human presentation task. At this
+checkpoint the complete automated suite passes all 101 tests.
 
 ---
 
-# 41. Planned Metrics
+# 41. Measured Evaluation Metrics — Complete
 
-IntentPay should not only look good in a demo.
-
-It should produce measurable results.
-
-Possible evaluation:
+IntentPay includes a deterministic, synthetic benchmark:
 
 ```text
-500 synthetic purchase scenarios
+500 synthetic purchase scenarios (dataset version 1.0)
 ```
 
-Cases may include:
+The current cases cover:
 
 - valid transaction,
 - budget exceeded,
-- quantity changed,
-- wrong category,
-- wrong brand,
-- wrong color,
-- subscription added,
-- price changed,
-- inventory changed,
-- stale authorization,
-- duplicate request,
-- API timeout,
+- exact-brand and wrong-category constraints,
+- no product within budget,
+- explicit valid and invalid product confirmation,
 - merchant approval required,
 - meaningful product trade-off,
-- budget stretch opportunity.
+- cheapest autonomous selection,
+- single-option user selection.
 
-Metrics:
+Run it through:
 
 ```text
-Valid purchases correctly allowed
-Violations correctly blocked
-REASK decisions
-False blocks
-Duplicate actions prevented
-Failures safely recovered
-Average decision latency
-Agent-assisted upsell revenue
-User reauthorization rate
-Policy escalations
+POST /evaluations/run
+GET  /evaluations/cases?limit=20
 ```
 
-We should show only metrics generated by real test runs.
+The latest verified local run produced:
+
+```text
+Cases:                       500
+Passed expected outcomes:   500 (100%)
+Decision accuracy:          100%
+Reason-code accuracy:       100%
+Product accuracy:           100%
+Unsafe ALLOW count:         0
+False BLOCK count:          0
+ALLOW / REASK / BLOCK / ESCALATE: 150 / 150 / 125 / 75
+```
+
+Average and p95 decision latency are measured on every run and returned by the
+API because they depend on the machine. These results establish a deterministic
+regression baseline, not production accuracy: the dataset is synthetic, uses
+one demo merchant catalog, and intentionally does not claim real-user fairness,
+revenue lift, or Razorpay reliability.
 
 ---
 
-# 42. Planned Demo Story
+# 42. Reproducible Five-Minute Demo Story — Complete
 
 A strong 5-minute demo can show:
 
@@ -1621,7 +1778,7 @@ A strong 5-minute demo can show:
 User intent
 → Product selection
 → Verification
-→ Razorpay Test Mode
+→ Internal payment simulation
 → Payment success
 ```
 
@@ -1661,9 +1818,32 @@ payment status unknown
 → prevent duplicate payment
 ```
 
+These five scenarios are executable through the demo API and are tested for
+their claimed outcomes. The complete recording script, timing, narration,
+commands, expected output, and fallback plan are in:
+
+```text
+docs/IntentPay_5_Minute_Demo.md
+```
+
+For a one-command local rehearsal after starting the API:
+
+```powershell
+.\scripts\run_demo.ps1 -IncludeBenchmark
+```
+
+The demo deliberately says "internal simulator." After Razorpay Test Mode is
+configured, the normal-purchase segment can be replaced by Razorpay Checkout
+and a signed provider webhook. Razorpay's official documentation requires an
+Orders API order, server-side signature verification, and test keys for the
+simulated test environment:
+
+- https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/integration-steps/
+- https://razorpay.com/docs/webhooks/validate-test/
+
 ---
 
-# 43. Long-Term Vision
+# 43. Long-Term Vision — Defined
 
 IntentPay can evolve from a Buildathon project into:
 
@@ -1681,9 +1861,25 @@ Risk Agent
 
 IntentPay's role is to ensure that these agents can act around money without losing control, explainability, or authorization.
 
+## Current proof versus future platform
+
+The current proof is a typed, deterministic control plane around one buyer
+flow, one synthetic merchant, an internal payment simulator, a Razorpay
+Test Mode adapter, persisted audit events, and a measurable benchmark. The
+future platform may add multiple merchant/provider adapters, signed mandates,
+authenticated users, risk agents, merchant growth agents, dashboards, and
+production observability.
+
+Those future capabilities are positioning, not current implementation claims.
+The invariant that carries forward is:
+
+> An agent may propose a commercial action, but only deterministic,
+> user-authorized, policy-compliant, auditable code may release it to a payment
+> provider.
+
 ---
 
-# 44. Why This Project Matters
+# 44. Why This Project Matters — Final Pitch Complete
 
 The future problem is not only:
 
@@ -1694,6 +1890,18 @@ The deeper problem is:
 > **"Can we trust AI to make commercial decisions involving money while preserving user intent and business policy?"**
 
 IntentPay is being built to answer that problem.
+
+The final problem/solution/differentiation/evidence pitch is available in:
+
+```text
+docs/IntentPay_Final_Pitch.md
+```
+
+The architecture and payment-state diagrams are available in:
+
+```text
+docs/IntentPay_Architecture.md
+```
 
 ---
 
@@ -1737,35 +1945,82 @@ When helping with this project:
    - secure,
    - idempotent.
 14. Before modifying an existing file, first inspect the current implementation so previously completed logic is not accidentally removed.
-15. The **Buyer Agent** and **Agent-Readable Merchant Layer** are complete.
-    Intents are merchant-bound, merchant capabilities fail closed, and every
-    payment path applies the merchant contract before authorization. The next
-    planned stage is **Protocol-Aware Design**, followed by Razorpay Test Mode.
+15. The **Buyer Agent**, **Agent-Readable Merchant Layer**,
+    **Protocol-Aware Design**, **Safety and Recommendation Integrity**,
+    **Evaluation and Metrics**, **Reproducible Demo**, and
+    **Razorpay Test Mode Boundary** stages are complete. Final project artifacts
+    are also complete. External commerce protocols remain explicitly marked as
+    not implemented, while internal commerce artifacts are versioned and
+    correlated. A real Razorpay test-account smoke test still requires
+    user-supplied credentials.
 
 ---
 
-# 46. Immediate Next Development Step
+# 46. Razorpay Test Mode Boundary — Implemented
 
-Complete the Protocol-Aware Design stage without claiming implementation of an
-external protocol that the repository does not actually support. Define clear
-internal boundaries for:
+Razorpay Test Mode is integrated behind the provider-neutral boundary:
 
 ```text
-Intent Mandate
-→ Merchant Contract
-→ Proposed Purchase
-→ Trust Gate decision
-→ Payment execution request
-→ Provider result and webhook event
+Trust Gate ALLOW
+→ ProviderPaymentCommand
+→ Razorpay Test Order
+→ ProviderPaymentResult
+→ Deterministic result verification
+→ Signed webhook verification
+→ Payment state reconciliation
 ```
 
-After those boundaries are documented and tested, integrate Razorpay Test Mode.
-The Razorpay phase must add signed webhook verification, provider-order
-reconciliation, timeout recovery, and end-to-end tests without weakening the
-existing deterministic authorization checks.
+The Razorpay adapter preserves idempotency, verifies webhook signatures before
+processing payloads, reconciles provider order IDs and amounts, represents
+timeout uncertainty as `UNKNOWN`, and keeps all deterministic authorization
+checks ahead of provider execution.
+
+## Implemented endpoints
+
+```text
+GET  /payments/razorpay-test/configuration
+POST /payments/razorpay-test/orders
+POST /payments/{payment_id}/razorpay-test/verify-checkout
+POST /payments/{payment_id}/razorpay-test/reconcile
+POST /webhooks/razorpay
+```
+
+The implementation:
+
+- accepts only `rzp_test_` API key IDs and rejects live keys,
+- runs the persisted Intent Verifier, Merchant Policy Engine, and Trust Gate
+  before creating a provider order,
+- converts authorized INR rupees to Razorpay paise,
+- generates deterministic, unique receipts from the intent and idempotency key,
+- stores provider, order, payment, currency, and provider-status evidence,
+- prevents a replay from issuing a second Orders API request,
+- verifies order ID, receipt, amount, currency, product, merchant, and protocol
+  correlation before returning Checkout options,
+- verifies the browser Checkout signature on the server without treating it as
+  captured payment proof,
+- validates raw webhook bytes with HMAC-SHA256 before JSON parsing,
+- uses `X-Razorpay-Event-Id` for webhook replay protection,
+- records `payment.failed` as an attempt without incorrectly closing the order,
+- tolerates a late authorized event after capture without state rollback,
+- treats network and provider-server uncertainty as `UNKNOWN`,
+- recovers an unknown order through its deterministic receipt and verifies the
+  provider result before reconciliation.
+
+Migration `e3f4a5b6c7d8` persists provider metadata and signed-webhook evidence.
+The configured PostgreSQL database is at that migration head.
+
+The adapter has complete fake-provider tests and makes no network call during
+the automated suite. A real Razorpay Test Mode smoke test is pending because
+`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` are not
+configured. Setup instructions are in `docs/Razorpay_Test_Mode_Setup.md`.
 
 ---
 
-# 47. Final Project Statement
+# 47. Final Project Statement — Roadmap Complete
 
-**IntentPay is an AI-native commerce trust and orchestration layer designed to let AI buyers transact with merchants safely while enabling legitimate merchant growth. It converts human intent into structured authorization, filters and ranks merchant products, explains trade-offs, controls budget-stretch and upsell behavior, verifies the final proposed purchase, enforces merchant policy, and ensures that only explainable, bounded, gated, and auditable actions reach the payment layer.**
+**IntentPay is an AI-native commerce trust and orchestration layer designed to let AI buyers transact with merchants safely while enabling legitimate merchant growth. It converts human intent into structured authorization, filters and ranks merchant products, explains trade-offs, controls budget-stretch behavior, verifies the final proposed purchase, enforces merchant policy, and ensures that only explainable, bounded, gated, and auditable actions reach an internal simulator or Razorpay Test Mode boundary.**
+
+All roadmap sections through Level 47 now have implemented code, verified tests,
+or a completed project artifact appropriate to that section. Production
+authentication, deployment, frontend, real-user evaluation, and credentialed
+provider validation remain explicitly outside the current buildathon proof.

@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from backend.app.db.models import PaymentDB
+from backend.app.db.models import IntentDB, PaymentDB
 from backend.app.schemas.payment import PaymentStatus
 from backend.app.services.payment_state_machine import (
     transition_payment_status,
@@ -22,8 +22,39 @@ def payment_to_dict(payment: PaymentDB):
         "amount": payment.amount,
         "status": payment.status,
         "idempotency_key": payment.idempotency_key,
+        "provider": payment.provider,
+        "provider_order_id": payment.provider_order_id,
+        "provider_payment_id": payment.provider_payment_id,
+        "provider_status": payment.provider_status,
+        "currency": payment.currency,
         "created_at": payment.created_at,
         "updated_at": payment.updated_at,
+    }
+
+
+def payment_protocol_details(
+    db: Session,
+    payment: PaymentDB,
+) -> dict:
+    if payment.intent_id is None:
+        return {}
+
+    intent_record = (
+        db.query(IntentDB)
+        .filter(IntentDB.intent_id == payment.intent_id)
+        .first()
+    )
+
+    if intent_record is None:
+        return {
+            "intent_id": payment.intent_id,
+        }
+
+    return {
+        "protocol_version": intent_record.protocol_version,
+        "correlation_id": intent_record.correlation_id,
+        "intent_id": intent_record.intent_id,
+        "merchant_id": intent_record.mandate.get("merchant_id"),
     }
 
 
@@ -34,9 +65,13 @@ def payment_to_dict(payment: PaymentDB):
 def create_payment(
     db: Session,
     intent_id: str,
+    correlation_id: str,
+    protocol_version: str,
     product_id: str,
     amount: int,
     idempotency_key: str,
+    provider: str = "INTERNAL_LEDGER",
+    currency: str = "INR",
 ):
     # --------------------------------------------------------
     # Check whether this idempotency key already exists
@@ -61,6 +96,8 @@ def create_payment(
             existing_payment.intent_id == intent_id
             and existing_payment.product_id == product_id
             and existing_payment.amount == amount
+            and existing_payment.provider == provider
+            and existing_payment.currency == currency
         ):
             return {
                 "success": True,
@@ -100,6 +137,8 @@ def create_payment(
         amount=amount,
         status=PaymentStatus.CREATED.value,
         idempotency_key=idempotency_key,
+        provider=provider,
+        currency=currency,
     )
 
     # --------------------------------------------------------
@@ -126,10 +165,15 @@ def create_payment(
             reason_code="PAYMENT_CREATED",
             amount=payment.amount,
             details={
+                **payment_protocol_details(db, payment),
+                "protocol_version": protocol_version,
+                "correlation_id": correlation_id,
                 "intent_id": payment.intent_id,
                 "product_id": payment.product_id,
                 "idempotency_key": payment.idempotency_key,
                 "status": payment.status,
+                "provider": payment.provider,
+                "currency": payment.currency,
             },
         )
 
@@ -248,6 +292,7 @@ def update_payment_status(
             reason_code="PAYMENT_STATUS_CHANGED",
             amount=payment.amount,
             details={
+                **payment_protocol_details(db, payment),
                 "previous_status": previous_status,
                 "new_status": new_status.value,
             },
@@ -361,6 +406,7 @@ def reconcile_payment(
             reason_code="PAYMENT_RECONCILED",
             amount=payment.amount,
             details={
+                **payment_protocol_details(db, payment),
                 "previous_status": previous_status,
                 "resolved_status": resolved_status.value,
             },

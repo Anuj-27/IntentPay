@@ -4,12 +4,21 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.models import IntentDB
 from backend.app.schemas.intent import IntentMandate
+from backend.app.schemas.protocol import PROTOCOL_VERSION
 from backend.app.services.audit_service import create_audit_log
 
 
 def intent_to_dict(intent_record: IntentDB):
+    intent = IntentMandate.model_validate(intent_record.mandate)
+
     return {
         "intent_id": intent_record.intent_id,
+        "protocol_context": {
+            "protocol_version": intent_record.protocol_version,
+            "correlation_id": intent_record.correlation_id,
+            "intent_id": intent_record.intent_id,
+            "merchant_id": intent.merchant_id,
+        },
         "status": "ACTIVE",
         "intent": intent_record.mandate,
         "selected_product_id": intent_record.selected_product_id,
@@ -23,8 +32,13 @@ def create_intent_record(
     db: Session,
     intent: IntentMandate,
 ):
+    intent_id = str(uuid4())
+    correlation_id = str(uuid4())
+
     intent_record = IntentDB(
-        intent_id=str(uuid4()),
+        intent_id=intent_id,
+        correlation_id=correlation_id,
+        protocol_version=PROTOCOL_VERSION,
         mandate=intent.model_dump(mode="json"),
         selection_confirmed=False,
     )
@@ -42,6 +56,8 @@ def create_intent_record(
             reason_code="INTENT_CREATED",
             amount=intent.max_budget,
             details={
+                "protocol_version": PROTOCOL_VERSION,
+                "correlation_id": correlation_id,
                 "merchant_id": intent.merchant_id,
                 "product_category": intent.product_category,
                 "quantity": intent.quantity,
@@ -90,6 +106,8 @@ def confirm_product_selection(
             entity_id=intent_record.intent_id,
             reason_code="PRODUCT_SELECTION_CONFIRMED",
             details={
+                "protocol_version": intent_record.protocol_version,
+                "correlation_id": intent_record.correlation_id,
                 "previous_product_id": previous_product_id,
                 "selected_product_id": product_id,
             },

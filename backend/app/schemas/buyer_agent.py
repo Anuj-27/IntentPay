@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend.app.schemas.decision import DecisionType
 from backend.app.schemas.product import Product
 from backend.app.schemas.purchase import ProposedPurchase
+from backend.app.schemas.safety import RecommendationIntegrityResult
 
 
 class RejectionReason(BaseModel):
@@ -135,6 +136,8 @@ class BuyerAgentEvaluationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     buyer_agent: BuyerAgentResult
+
+    recommendation_integrity: RecommendationIntegrityResult
 
     verification: PurchaseVerificationSummary | None = None
     intent_decision: DecisionDetails | None = None

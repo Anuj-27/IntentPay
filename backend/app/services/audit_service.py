@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from backend.app.db.models import AuditLogDB
 from backend.app.schemas.buyer_agent import BuyerAgentResult
 from backend.app.schemas.decision import DecisionType
+from backend.app.services.privacy_service import redact_sensitive_data
 
 
 def create_audit_log(
@@ -29,7 +30,7 @@ def create_audit_log(
         reason_code=reason_code,
         message=message,
         amount=amount,
-        details=details,
+        details=redact_sensitive_data(details),
     )
 
     db.add(audit_log)
@@ -60,6 +61,8 @@ def audit_log_to_dict(log):
 def create_buyer_agent_audit_logs(
     db: Session,
     intent_id: str,
+    correlation_id: str,
+    protocol_version: str,
     buyer_result: BuyerAgentResult,
     verification_result: dict | None = None,
     policy_result: dict | None = None,
@@ -94,6 +97,8 @@ def create_buyer_agent_audit_logs(
         reason_code=buyer_result.reason_code,
         amount=amount,
         details={
+            "protocol_version": protocol_version,
+            "correlation_id": correlation_id,
             "merchant_id": buyer_result.merchant_id,
             "recommended_product_id": (
                 recommended_product_id
@@ -142,6 +147,8 @@ def create_buyer_agent_audit_logs(
         reason_code=final_decision["reason_code"],
         amount=amount,
         details={
+            "protocol_version": protocol_version,
+            "correlation_id": correlation_id,
             "buyer_agent_decision": (
                 buyer_result.decision.value
             ),

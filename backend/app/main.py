@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from openai import OpenAIError
 from sqlalchemy.orm import Session
 
@@ -30,6 +32,26 @@ from backend.app.schemas.merchant import (
     MerchantContract,
 )
 from backend.app.schemas.purchase import PurchaseVerificationRequest
+from backend.app.schemas.protocol import (
+    CommerceContext,
+    PaymentExecutionBoundaryResponse,
+    ProtocolManifest,
+)
+from backend.app.schemas.demo import DemoScenarioList, DemoScenarioRun
+from backend.app.schemas.evaluation import (
+    EvaluationDatasetResponse,
+    EvaluationReport,
+)
+from backend.app.schemas.orchestration import EndToEndOrchestrationResult
+from backend.app.schemas.safety import SafetyManifest
+from backend.app.schemas.razorpay import (
+    RazorpayCheckoutVerificationRequest,
+    RazorpayCheckoutVerificationResponse,
+    RazorpayConfigurationStatus,
+    RazorpayPaymentExecutionResponse,
+    RazorpayReconciliationResponse,
+    RazorpayWebhookResponse,
+)
 
 
 from backend.app.services.product_filter import filter_products
@@ -47,6 +69,38 @@ from backend.app.services.merchant_service import (
     list_merchant_contracts,
 )
 from backend.app.services.trust_gate import evaluate_trust_gate
+from backend.app.services.protocol_service import (
+    build_commerce_context,
+    build_internal_provider_result,
+    build_protocol_manifest,
+    build_provider_payment_command,
+    verify_provider_result,
+)
+from backend.app.data.demo_scenarios import demo_scenarios
+from backend.app.data.evaluation_cases import (
+    DATASET_NAME,
+    DATASET_VERSION,
+    evaluation_cases,
+)
+from backend.app.services.demo_service import DEMO_MODE, run_demo_scenario
+from backend.app.services.evaluation_service import run_evaluation_suite
+from backend.app.services.orchestration_service import (
+    build_stage_trace,
+    evaluate_intent_pipeline,
+    next_action_for_evaluation,
+)
+from backend.app.services.safety_service import build_safety_manifest
+from backend.app.services.razorpay_adapter import (
+    RazorpayTestClient,
+    RazorpayTestCredentials,
+    get_razorpay_configuration_status,
+)
+from backend.app.services.razorpay_service import (
+    execute_razorpay_test_order,
+    process_razorpay_webhook,
+    reconcile_razorpay_payment,
+    verify_razorpay_checkout_response,
+)
 from backend.app.schemas.decision import DecisionType
 from backend.app.schemas.payment import (
     PaymentExecutionRequest,
@@ -80,6 +134,38 @@ app = FastAPI(
     title="IntentPay API",
     version="0.1.0"
 )
+
+
+@app.middleware("http")
+async def add_safe_response_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
+def get_razorpay_test_client() -> RazorpayTestClient | None:
+    try:
+        credentials = RazorpayTestCredentials.from_environment()
+    except ValueError:
+        return None
+    return RazorpayTestClient(credentials)
+
+
+def require_razorpay_test_client(
+    client: RazorpayTestClient | None,
+) -> RazorpayTestClient:
+    if client is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "reason_code": "RAZORPAY_TEST_NOT_CONFIGURED",
+                "message": get_razorpay_configuration_status().message,
+            },
+        )
+    return client
 
 
 def get_intent_or_404(db: Session, intent_id: str):
@@ -165,7 +251,7 @@ def evaluate_purchase_request(intent_record, purchase):
 
 def persist_buyer_agent_audit_logs(
     db: Session,
-    intent_id: str,
+    intent_record,
     buyer_result: BuyerAgentResult,
     verification_result: dict | None = None,
     policy_result: dict | None = None,
@@ -174,7 +260,9 @@ def persist_buyer_agent_audit_logs(
     try:
         create_buyer_agent_audit_logs(
             db=db,
-            intent_id=intent_id,
+            intent_id=intent_record.intent_id,
+            correlation_id=intent_record.correlation_id,
+            protocol_version=intent_record.protocol_version,
             buyer_result=buyer_result,
             verification_result=verification_result,
             policy_result=policy_result,
@@ -192,6 +280,91 @@ def health_check():
         "status": "ok",
         "service": "IntentPay API"
     }
+
+
+@app.get(
+    "/protocol/manifest",
+    response_model=ProtocolManifest,
+)
+def get_protocol_manifest():
+    return build_protocol_manifest()
+
+
+@app.get(
+    "/safety/manifest",
+    response_model=SafetyManifest,
+)
+def get_safety_manifest():
+    return build_safety_manifest()
+
+
+@app.get(
+    "/payments/razorpay-test/configuration",
+    response_model=RazorpayConfigurationStatus,
+)
+def get_razorpay_test_configuration():
+    return get_razorpay_configuration_status()
+
+
+@app.get(
+    "/evaluations/cases",
+    response_model=EvaluationDatasetResponse,
+)
+def get_evaluation_cases(
+    limit: int = Query(default=20, ge=1, le=500),
+):
+    returned_cases = evaluation_cases[:limit]
+    return {
+        "dataset_name": DATASET_NAME,
+        "dataset_version": DATASET_VERSION,
+        "total_cases": len(evaluation_cases),
+        "returned_cases": len(returned_cases),
+        "cases": returned_cases,
+    }
+
+
+@app.post(
+    "/evaluations/run",
+    response_model=EvaluationReport,
+)
+def execute_evaluation_suite(
+    include_case_results: bool = Query(default=False),
+):
+    return run_evaluation_suite(
+        include_case_results=include_case_results,
+    )
+
+
+@app.get(
+    "/demo/scenarios",
+    response_model=DemoScenarioList,
+)
+def get_demo_scenarios():
+    return {
+        "mode": DEMO_MODE,
+        "real_money_moved": False,
+        "scenarios": demo_scenarios,
+    }
+
+
+@app.post(
+    "/demo/scenarios/{scenario_id}/run",
+    response_model=DemoScenarioRun,
+)
+def execute_demo_scenario(
+    scenario_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        return run_demo_scenario(db, scenario_id)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "reason_code": "DEMO_SCENARIO_NOT_FOUND",
+                "message": str(error),
+            },
+        ) from error
 
 
 @app.get("/merchants")
@@ -270,6 +443,18 @@ def get_intent(
     db: Session = Depends(get_db),
 ):
     return intent_to_dict(get_intent_or_404(db, intent_id))
+
+
+@app.get(
+    "/intents/{intent_id}/protocol-context",
+    response_model=CommerceContext,
+)
+def get_intent_protocol_context(
+    intent_id: str,
+    db: Session = Depends(get_db),
+):
+    intent_record = get_intent_or_404(db, intent_id)
+    return build_commerce_context(intent_record)
 
 
 @app.post("/intents/{intent_id}/selection")
@@ -390,6 +575,7 @@ def verify_proposed_purchase(
     db: Session = Depends(get_db),
 ):
     intent_record = get_intent_or_404(db, request.intent_id)
+    protocol_context = build_commerce_context(intent_record)
     (
         verification_result,
         decision_result,
@@ -402,18 +588,23 @@ def verify_proposed_purchase(
 
     return {
         "intent_id": request.intent_id,
+        "protocol_context": protocol_context,
         "verification": verification_result,
         "intent_decision": decision_result,
         "merchant_policy": policy_result,
         "final_decision": final_decision
     }
 
-@app.post("/payments/create")
+@app.post(
+    "/payments/create",
+    response_model=PaymentExecutionBoundaryResponse,
+)
 def create_verified_payment(
     request: PaymentExecutionRequest,
     db: Session = Depends(get_db)
 ):
     intent_record = get_intent_or_404(db, request.intent_id)
+    protocol_context = build_commerce_context(intent_record)
     (
         verification_result,
         intent_decision,
@@ -435,6 +626,10 @@ def create_verified_payment(
             reason_code=final_decision["reason_code"],
             amount=verification_result.get("expected_total"),
             details={
+                "protocol_version": intent_record.protocol_version,
+
+                "correlation_id": intent_record.correlation_id,
+
                 "product_id": request.purchase.product_id,
 
                 "idempotency_key": request.idempotency_key,
@@ -471,6 +666,7 @@ def create_verified_payment(
     if final_decision["decision"] != DecisionType.ALLOW:
         return {
             "payment_created": False,
+            "protocol_context": protocol_context,
             "final_decision": final_decision,
             "message": (
                 "Payment was not created because "
@@ -482,19 +678,159 @@ def create_verified_payment(
         "expected_total"
     ]
 
+    provider_command = build_provider_payment_command(
+        intent_record=intent_record,
+        purchase=request.purchase,
+        idempotency_key=request.idempotency_key,
+    )
+
     payment_result = create_payment(
         db=db,
         intent_id=request.intent_id,
+        correlation_id=intent_record.correlation_id,
+        protocol_version=intent_record.protocol_version,
         product_id=request.purchase.product_id,
         amount=trusted_amount,
         idempotency_key=request.idempotency_key
     )
 
+    if not payment_result["success"]:
+        return {
+            "payment_created": False,
+            "protocol_context": protocol_context,
+            "final_decision": final_decision,
+            "payment_command": provider_command,
+            "payment_result": payment_result,
+            "message": payment_result["message"],
+        }
+
+    provider_result = build_internal_provider_result(
+        provider_command,
+        payment_result,
+    )
+    provider_verification = verify_provider_result(
+        provider_command,
+        provider_result,
+    )
+
     return {
         "payment_created": payment_result["created"],
+        "protocol_context": protocol_context,
         "final_decision": final_decision,
-        "payment_result": payment_result
+        "payment_command": provider_command,
+        "provider_result": provider_result,
+        "provider_verification": provider_verification,
+        "payment_result": payment_result,
     }
+
+
+@app.post(
+    "/payments/razorpay-test/orders",
+    response_model=RazorpayPaymentExecutionResponse,
+)
+def create_razorpay_test_order(
+    request: PaymentExecutionRequest,
+    db: Session = Depends(get_db),
+    razorpay_client=Depends(get_razorpay_test_client),
+):
+    intent_record = get_intent_or_404(db, request.intent_id)
+    protocol_context = build_commerce_context(intent_record)
+    (
+        verification_result,
+        intent_decision,
+        policy_result,
+        final_decision,
+    ) = evaluate_purchase_request(intent_record, request.purchase)
+
+    try:
+        create_audit_log(
+            db=db,
+            event_type="TRUST_GATE_DECISION",
+            component="TRUST_GATE",
+            message=final_decision["message"],
+            entity_type="INTENT",
+            entity_id=request.intent_id,
+            decision=final_decision["decision"],
+            reason_code=final_decision["reason_code"],
+            amount=verification_result.get("expected_total"),
+            details={
+                "protocol_version": intent_record.protocol_version,
+                "correlation_id": intent_record.correlation_id,
+                "provider": "RAZORPAY_TEST",
+                "product_id": request.purchase.product_id,
+                "idempotency_key": request.idempotency_key,
+                "verified": verification_result["verified"],
+                "intent_decision": intent_decision["decision"],
+                "merchant_policy_status": policy_result.get("status"),
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    if final_decision["decision"] != DecisionType.ALLOW:
+        return {
+            "payment_created": False,
+            "protocol_context": protocol_context,
+            "final_decision": final_decision,
+            "reason_code": final_decision["reason_code"],
+            "message": (
+                "No Razorpay order was created because the Trust Gate did "
+                "not return ALLOW."
+            ),
+        }
+
+    client = require_razorpay_test_client(razorpay_client)
+    execution = execute_razorpay_test_order(
+        db=db,
+        intent_record=intent_record,
+        purchase=request.purchase,
+        idempotency_key=request.idempotency_key,
+        trusted_amount=verification_result["expected_total"],
+        client=client,
+    )
+    return {
+        "protocol_context": protocol_context,
+        "final_decision": final_decision,
+        **execution,
+    }
+
+
+@app.post(
+    "/payments/{payment_id}/razorpay-test/verify-checkout",
+    response_model=RazorpayCheckoutVerificationResponse,
+)
+def verify_razorpay_checkout(
+    payment_id: str,
+    request: RazorpayCheckoutVerificationRequest,
+    db: Session = Depends(get_db),
+    razorpay_client=Depends(get_razorpay_test_client),
+):
+    client = require_razorpay_test_client(razorpay_client)
+    return verify_razorpay_checkout_response(
+        db,
+        payment_id,
+        request,
+        client,
+    )
+
+
+@app.post(
+    "/payments/{payment_id}/razorpay-test/reconcile",
+    response_model=RazorpayReconciliationResponse,
+)
+def reconcile_razorpay_test_payment(
+    payment_id: str,
+    db: Session = Depends(get_db),
+    razorpay_client=Depends(get_razorpay_test_client),
+):
+    client = require_razorpay_test_client(razorpay_client)
+    return reconcile_razorpay_payment(
+        db,
+        payment_id,
+        client,
+    )
 
 @app.patch("/payments/{payment_id}/status")
 def change_payment_status(
@@ -531,6 +867,51 @@ def payment_webhook(
         payment_id=request.payment_id,
         new_status=request.status,
     )
+
+
+@app.post(
+    "/webhooks/razorpay",
+    response_model=RazorpayWebhookResponse,
+)
+async def razorpay_webhook(
+    request: Request,
+    x_razorpay_signature: Annotated[
+        str,
+        Header(alias="X-Razorpay-Signature"),
+    ],
+    x_razorpay_event_id: Annotated[
+        str,
+        Header(alias="X-Razorpay-Event-Id"),
+    ],
+    db: Session = Depends(get_db),
+    razorpay_client=Depends(get_razorpay_test_client),
+):
+    client = require_razorpay_test_client(razorpay_client)
+    raw_body = await request.body()
+    result = process_razorpay_webhook(
+        db=db,
+        raw_body=raw_body,
+        signature=x_razorpay_signature,
+        event_id=x_razorpay_event_id,
+        client=client,
+    )
+
+    if result.reason_code == "RAZORPAY_WEBHOOK_SIGNATURE_INVALID":
+        raise HTTPException(
+            status_code=401,
+            detail=result.model_dump(mode="json"),
+        )
+    if result.reason_code == "RAZORPAY_WEBHOOK_PAYLOAD_INVALID":
+        raise HTTPException(
+            status_code=400,
+            detail=result.model_dump(mode="json"),
+        )
+    if not result.success:
+        raise HTTPException(
+            status_code=409,
+            detail=result.model_dump(mode="json"),
+        )
+    return result
 
 @app.get("/audit")
 def get_audit_logs(
@@ -686,7 +1067,7 @@ def execute_buyer_agent(
 
     persist_buyer_agent_audit_logs(
         db=db,
-        intent_id=intent_id,
+        intent_record=intent_record,
         buyer_result=buyer_result,
     )
 
@@ -721,75 +1102,79 @@ def evaluate_buyer_agent_proposal(
         else None
     )
 
-    # --------------------------------------------------------
-    # 2. Run the Buyer Agent
-    # --------------------------------------------------------
-
-    buyer_result = run_buyer_agent(
+    evaluation = evaluate_intent_pipeline(
         intent=intent,
         merchant_contract=merchant_contract,
         confirmed_product_id=confirmed_product_id,
     )
+    persist_buyer_agent_audit_logs(
+        db=db,
+        intent_record=intent_record,
+        buyer_result=evaluation.buyer_agent,
+        verification_result=(
+            evaluation.verification.model_dump()
+            if evaluation.verification is not None
+            else None
+        ),
+        policy_result=(
+            evaluation.merchant_policy.model_dump()
+            if evaluation.merchant_policy is not None
+            else None
+        ),
+        final_decision=(
+            evaluation.final_decision.model_dump()
+            if evaluation.buyer_agent.proposed_purchase is not None
+            else None
+        ),
+    )
+    return evaluation
 
-    # --------------------------------------------------------
-    # 3. Stop if no purchase proposal was created
-    # --------------------------------------------------------
 
-    if buyer_result.proposed_purchase is None:
-        persist_buyer_agent_audit_logs(
-            db=db,
-            intent_id=intent_id,
-            buyer_result=buyer_result,
-        )
-
-        return {
-            "buyer_agent": buyer_result,
-            "verification": None,
-            "intent_decision": None,
-            "merchant_policy": None,
-            "final_decision": {
-                "decision": buyer_result.decision,
-                "reason_code": buyer_result.reason_code,
-                "message": buyer_result.message,
-                "violations": [],
-            },
-            "ready_for_payment": False,
-        }
-
-    # --------------------------------------------------------
-    # 4. Verify the exact proposed transaction
-    # --------------------------------------------------------
-
-    (
-        verification_result,
-        intent_decision,
-        policy_result,
-        final_decision,
-    ) = evaluate_purchase_request(
-        intent_record,
-        buyer_result.proposed_purchase,
+@app.post(
+    "/intents/{intent_id}/orchestrate",
+    response_model=EndToEndOrchestrationResult,
+)
+def orchestrate_intent(
+    intent_id: str,
+    db: Session = Depends(get_db),
+):
+    intent_record = get_intent_or_404(db, intent_id)
+    intent = mandate_from_record(intent_record)
+    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    confirmed_product_id = (
+        intent_record.selected_product_id
+        if intent_record.selection_confirmed
+        else None
+    )
+    evaluation = evaluate_intent_pipeline(
+        intent=intent,
+        merchant_contract=merchant_contract,
+        confirmed_product_id=confirmed_product_id,
     )
     persist_buyer_agent_audit_logs(
         db=db,
-        intent_id=intent_id,
-        buyer_result=buyer_result,
-        verification_result=verification_result,
-        policy_result=policy_result,
-        final_decision=final_decision,
-    )
-
-    # --------------------------------------------------------
-    # 5. Return the complete authorization result
-    # --------------------------------------------------------
-
-    return {
-        "buyer_agent": buyer_result,
-        "verification": verification_result,
-        "intent_decision": intent_decision,
-        "merchant_policy": policy_result,
-        "final_decision": final_decision,
-        "ready_for_payment": (
-            final_decision["decision"]
-            == DecisionType.ALLOW
+        intent_record=intent_record,
+        buyer_result=evaluation.buyer_agent,
+        verification_result=(
+            evaluation.verification.model_dump()
+            if evaluation.verification is not None
+            else None
         ),
+        policy_result=(
+            evaluation.merchant_policy.model_dump()
+            if evaluation.merchant_policy is not None
+            else None
+        ),
+        final_decision=(
+            evaluation.final_decision.model_dump()
+            if evaluation.buyer_agent.proposed_purchase is not None
+            else None
+        ),
+    )
+    return {
+        "protocol_context": build_commerce_context(intent_record),
+        "evaluation": evaluation,
+        "stage_trace": build_stage_trace(evaluation),
+        "next_action": next_action_for_evaluation(evaluation),
+        "payment_executed": False,
     }

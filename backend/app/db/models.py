@@ -23,6 +23,8 @@ class IntentDB(Base):
     __tablename__ = "intents"
 
     intent_id = Column(String, primary_key=True)
+    correlation_id = Column(String, unique=True, nullable=False)
+    protocol_version = Column(String, default="1.0", nullable=False)
     mandate = Column(JSON, nullable=False)
     selected_product_id = Column(String, nullable=True)
     selection_confirmed = Column(Boolean, default=False, nullable=False)
@@ -75,6 +77,37 @@ class PaymentDB(Base):
         nullable=False
     )
 
+    provider = Column(
+        String,
+        default="INTERNAL_LEDGER",
+        nullable=False,
+    )
+
+    provider_order_id = Column(
+        String,
+        unique=True,
+        nullable=True,
+        index=True,
+    )
+
+    provider_payment_id = Column(
+        String,
+        unique=True,
+        nullable=True,
+        index=True,
+    )
+
+    provider_status = Column(
+        String,
+        nullable=True,
+    )
+
+    currency = Column(
+        String,
+        default="INR",
+        nullable=False,
+    )
+
     created_at = Column(
         DateTime,
         default=utc_now,
@@ -111,6 +144,17 @@ class WebhookEventDB(Base):
         Boolean,
         default=True,
         nullable=False
+    )
+
+    provider = Column(
+        String,
+        default="INTERNAL_LEDGER",
+        nullable=False,
+    )
+
+    signature_verified = Column(
+        Boolean,
+        nullable=True,
     )
 
     created_at = Column(
