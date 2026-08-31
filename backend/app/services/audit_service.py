@@ -3,6 +3,8 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from backend.app.db.models import AuditLogDB
+from backend.app.schemas.buyer_agent import BuyerAgentResult
+from backend.app.schemas.decision import DecisionType
 
 
 def create_audit_log(
@@ -38,6 +40,7 @@ def create_audit_log(
 
     return audit_log
 
+
 def audit_log_to_dict(log):
     return {
         "audit_id": log.audit_id,
@@ -52,3 +55,121 @@ def audit_log_to_dict(log):
         "details": log.details,
         "created_at": log.created_at,
     }
+
+
+def create_buyer_agent_audit_logs(
+    db: Session,
+    intent_id: str,
+    buyer_result: BuyerAgentResult,
+    verification_result: dict | None = None,
+    policy_result: dict | None = None,
+    final_decision: dict | None = None,
+):
+    proposed_purchase = buyer_result.proposed_purchase
+
+    amount = (
+        proposed_purchase.total_amount
+        if proposed_purchase is not None
+        else None
+    )
+
+    recommended_product_id = (
+        buyer_result.recommended_product.product_id
+        if buyer_result.recommended_product is not None
+        else None
+    )
+
+    # --------------------------------------------------------
+    # Record what the Buyer Agent decided
+    # --------------------------------------------------------
+
+    create_audit_log(
+        db=db,
+        event_type="BUYER_AGENT_DECISION",
+        component="BUYER_AGENT",
+        message=buyer_result.message,
+        entity_type="INTENT",
+        entity_id=intent_id,
+        decision=buyer_result.decision.value,
+        reason_code=buyer_result.reason_code,
+        amount=amount,
+        details={
+            "recommended_product_id": (
+                recommended_product_id
+            ),
+            "proposed_product_id": (
+                proposed_purchase.product_id
+                if proposed_purchase is not None
+                else None
+            ),
+            "allowed_product_count": len(
+                buyer_result.ranked_products
+            ),
+            "rejected_product_count": len(
+                buyer_result.rejected_products
+            ),
+            "stretch_candidate_count": len(
+                buyer_result.stretch_candidates
+            ),
+            "proposal_created": (
+                proposed_purchase is not None
+            ),
+        },
+    )
+
+    # No Trust Gate event exists when the Buyer Agent
+    # did not create a ProposedPurchase.
+    if final_decision is None:
+        return
+
+    final_decision_value = DecisionType(
+        final_decision["decision"]
+    ).value
+
+    # --------------------------------------------------------
+    # Record the Trust Gate preview decision
+    # --------------------------------------------------------
+
+    create_audit_log(
+        db=db,
+        event_type="TRUST_GATE_PREVIEW_DECISION",
+        component="TRUST_GATE",
+        message=final_decision["message"],
+        entity_type="INTENT",
+        entity_id=intent_id,
+        decision=final_decision_value,
+        reason_code=final_decision["reason_code"],
+        amount=amount,
+        details={
+            "buyer_agent_decision": (
+                buyer_result.decision.value
+            ),
+            "buyer_agent_reason_code": (
+                buyer_result.reason_code
+            ),
+            "verified": (
+                verification_result.get("verified")
+                if verification_result is not None
+                else None
+            ),
+            "expected_total": (
+                verification_result.get("expected_total")
+                if verification_result is not None
+                else None
+            ),
+            "merchant_policy_status": (
+                policy_result.get("status")
+                if policy_result is not None
+                else None
+            ),
+            "merchant_policy_reason": (
+                policy_result.get("reason_code")
+                if policy_result is not None
+                else None
+            ),
+            "ready_for_payment": (
+                final_decision_value
+                == DecisionType.ALLOW.value
+            ),
+        },
+    )

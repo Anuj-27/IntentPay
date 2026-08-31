@@ -12,17 +12,18 @@ Currently implemented and tested:
 - persisted intent mandates,
 - explicit product-selection confirmation for non-autonomous intents,
 - quantity-aware filtering, ranking, budget stretch, and trade-offs,
+- Buyer Agent orchestration with explicit recommendation and selection output,
 - Proposed Purchase and Intent Verifier,
 - Merchant Policy Engine and Trust Gate,
+- Buyer Agent and Trust Gate evaluation audit events,
 - PostgreSQL models and Alembic migrations,
 - persistent payment idempotency and payment state transitions,
 - webhook replay protection,
 - persistent audit logs,
 - automated regression tests.
 
-The Buyer Agent, real Razorpay Test Mode calls, signed Razorpay webhook
-verification, merchant capability APIs, frontend, and evaluation suite remain
-future work.
+Real Razorpay Test Mode calls, signed Razorpay webhook verification, merchant
+capability APIs, frontend, and the larger evaluation suite remain future work.
 
 ## 1. Project Name
 
@@ -1216,25 +1217,58 @@ We do not want an LLM alone to decide whether a payment is safe.
 
 ---
 
-# 34. Planned Buyer Agent
+# 34. Completed Buyer Agent Orchestration
 
-The Buyer Agent will:
+The Buyer Agent orchestration layer is implemented. It converts a trusted
+persisted Intent Mandate into either an explainable decision or an exact
+Proposed Purchase.
 
-```text
-Understand request
-      ↓
-Search merchant catalog
-      ↓
-Compare products
-      ↓
-Use PVE
-      ↓
-Propose product
-      ↓
-Create Proposed Purchase
-```
+The decision flow is:
 
-IntentPay then verifies what the Buyer Agent wants to do.
+1. Load the persisted Intent Mandate.
+2. Apply hard product constraints.
+3. Rank valid products using user preferences.
+4. Calculate meaningful trade-offs and budget-stretch candidates.
+5. Return BLOCK when no valid product exists.
+6. Return REASK when explicit user selection is required.
+7. Select automatically only when autonomous selection was authorized.
+8. Create an exact Proposed Purchase.
+9. Verify the proposal against the original intent.
+10. Apply merchant policy and calculate the final Trust Gate decision.
+
+The Buyer Agent keeps the agent's recommendation separate from the product
+that the user selected. This makes it possible to explain when the agent
+recommended one product but the user deliberately authorized another.
+
+The Buyer Agent follows these safety rules:
+
+- It does not trust mutable intent data supplied during execution.
+- It never selects a product that failed a hard constraint.
+- It respects an existing user-confirmed product.
+- It includes quantity when calculating the proposed total.
+- It does not invent subscription authorization.
+- It never treats a budget-stretch recommendation as purchase authorization.
+- Every Proposed Purchase must still pass deterministic verification.
+
+Implemented endpoints:
+
+- `POST /intents/{intent_id}/buyer-agent`
+- `POST /intents/{intent_id}/buyer-agent/evaluate`
+
+The evaluation response contains the Buyer Agent result, purchase verification,
+intent decision, merchant-policy evaluation, final Trust Gate decision, and
+the `ready_for_payment` status.
+
+Buyer Agent decisions are stored as `BUYER_AGENT_DECISION` audit events. When
+a Proposed Purchase reaches the Trust Gate, its result is also stored as a
+`TRUST_GATE_PREVIEW_DECISION` event. REASK and BLOCK outcomes without a proposal
+do not falsely claim that the Trust Gate ran.
+
+Level 34 includes unit, API, Trust Gate, and audit integration coverage. At
+this checkpoint, the complete test suite passes all 36 tests.
+
+> **The Buyer Agent may propose a transaction, but only the deterministic
+> Trust Gate can authorize it.**
 
 ---
 
@@ -1478,7 +1512,6 @@ External commerce integration and user experience: still in progress
 
 ### Remaining major work
 
-- Buyer Agent
 - merchant capability APIs
 - Razorpay Test Mode
 - retries / payment uncertainty
@@ -1670,30 +1703,36 @@ When helping with this project:
    - secure,
    - idempotent.
 14. Before modifying an existing file, first inspect the current implementation so previously completed logic is not accidentally removed.
-15. The immediate next critical module is the **Buyer Agent orchestration
-    layer**, followed by Razorpay Test Mode integration and signed webhook
-    verification.
+15. The **Buyer Agent orchestration layer** is complete, including persisted
+    intent loading, recommendation and selection separation, Proposed Purchase
+    creation, Trust Gate evaluation, structured audit logs, and automated tests.
+    The immediate next module is the **Agent-Readable Merchant Layer**.
 
 ---
 
 # 46. Immediate Next Development Step
 
-Build the Buyer Agent orchestration layer on top of the existing safety
-foundation:
+Build the Agent-Readable Merchant Layer on top of the completed Buyer Agent
+foundation. The merchant should expose structured information for:
 
 ```text
-Persisted Intent Mandate
-→ Catalog filter and preference ranking
-→ Trade-off / stretch proposal
-→ User selection when required
-→ Proposed Purchase
-→ Existing Intent Verifier and Trust Gate
+Merchant identity
+→ agent capabilities
+→ product catalog
+→ inventory availability
+→ checkout capabilities
+→ transaction limits
+→ human-approval thresholds
+→ refund and cancellation policies
 ```
 
-After that, integrate Razorpay Test Mode. The Razorpay phase must add signed
-webhook verification, provider-order reconciliation, timeout recovery, and
-end-to-end tests without weakening the existing deterministic authorization
-checks.
+The Buyer Agent should consume this structured merchant contract instead of
+depending permanently on hard-coded merchant assumptions.
+
+After the merchant layer is stable, integrate Razorpay Test Mode. The Razorpay
+phase must add signed webhook verification, provider-order reconciliation,
+timeout recovery, and end-to-end tests without weakening the existing
+deterministic authorization checks.
 
 ---
 

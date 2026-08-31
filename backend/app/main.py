@@ -16,11 +16,16 @@ from backend.app.services.llm_intent_extractor import (
 )
 
 from backend.app.schemas.intent import IntentMandate, IntentSelectionRequest
+from backend.app.schemas.buyer_agent import (
+    BuyerAgentEvaluationResult,
+    BuyerAgentResult,
+)
 from backend.app.schemas.purchase import PurchaseVerificationRequest
 from backend.app.data.products import products
 
 
 from backend.app.services.product_filter import filter_products
+from backend.app.services.buyer_agent import run_buyer_agent
 from backend.app.services.budget_stretch import find_budget_stretch_candidates
 from backend.app.services.preference_engine import rank_products
 from backend.app.services.tradeoff_engine import evaluate_tradeoff
@@ -45,8 +50,9 @@ from backend.app.services.webhook_service import (
     process_payment_webhook
 )
 from backend.app.services.audit_service import (
-    create_audit_log,
     audit_log_to_dict,
+    create_audit_log,
+    create_buyer_agent_audit_logs,
 )
 from backend.app.db.models import AuditLogDB
 from backend.app.services.intent_service import (
@@ -56,8 +62,6 @@ from backend.app.services.intent_service import (
     intent_to_dict,
     mandate_from_record,
 )
-
-
 
 app = FastAPI(
     title="IntentPay API",
@@ -101,6 +105,29 @@ def evaluate_purchase_request(intent_record, purchase):
         policy_result,
     )
     return verification_result, intent_decision, policy_result, final_decision
+
+
+def persist_buyer_agent_audit_logs(
+    db: Session,
+    intent_id: str,
+    buyer_result: BuyerAgentResult,
+    verification_result: dict | None = None,
+    policy_result: dict | None = None,
+    final_decision: dict | None = None,
+):
+    try:
+        create_buyer_agent_audit_logs(
+            db=db,
+            intent_id=intent_id,
+            buyer_result=buyer_result,
+            verification_result=verification_result,
+            policy_result=policy_result,
+            final_decision=final_decision,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 @app.get("/health")
@@ -471,3 +498,154 @@ def parse_natural_language_intent_with_llm(
                 "message": "The intent model request failed.",
             },
         ) from error
+
+
+@app.post(
+    "/intents/{intent_id}/buyer-agent",
+    response_model=BuyerAgentResult,
+)
+def execute_buyer_agent(
+    intent_id: str,
+    db: Session = Depends(get_db),
+):
+    # --------------------------------------------------------
+    # 1. Load the trusted persisted intent
+    # --------------------------------------------------------
+
+    intent_record = get_intent_or_404(
+        db,
+        intent_id,
+    )
+
+    intent = mandate_from_record(
+        intent_record
+    )
+
+    # --------------------------------------------------------
+    # 2. Load user-confirmed selection when it exists
+    # --------------------------------------------------------
+
+    confirmed_product_id = (
+        intent_record.selected_product_id
+        if intent_record.selection_confirmed
+        else None
+    )
+
+    # --------------------------------------------------------
+    # 3. Run the Buyer Agent
+    # --------------------------------------------------------
+
+    buyer_result = run_buyer_agent(
+        intent=intent,
+        products=products,
+        confirmed_product_id=confirmed_product_id,
+    )
+
+    persist_buyer_agent_audit_logs(
+        db=db,
+        intent_id=intent_id,
+        buyer_result=buyer_result,
+    )
+
+    return buyer_result
+
+
+@app.post(
+    "/intents/{intent_id}/buyer-agent/evaluate",
+    response_model=BuyerAgentEvaluationResult,
+)
+def evaluate_buyer_agent_proposal(
+    intent_id: str,
+    db: Session = Depends(get_db),
+):
+    # --------------------------------------------------------
+    # 1. Load the trusted persisted intent
+    # --------------------------------------------------------
+
+    intent_record = get_intent_or_404(
+        db,
+        intent_id,
+    )
+
+    intent = mandate_from_record(
+        intent_record
+    )
+
+    confirmed_product_id = (
+        intent_record.selected_product_id
+        if intent_record.selection_confirmed
+        else None
+    )
+
+    # --------------------------------------------------------
+    # 2. Run the Buyer Agent
+    # --------------------------------------------------------
+
+    buyer_result = run_buyer_agent(
+        intent=intent,
+        products=products,
+        confirmed_product_id=confirmed_product_id,
+    )
+
+    # --------------------------------------------------------
+    # 3. Stop if no purchase proposal was created
+    # --------------------------------------------------------
+
+    if buyer_result.proposed_purchase is None:
+        persist_buyer_agent_audit_logs(
+            db=db,
+            intent_id=intent_id,
+            buyer_result=buyer_result,
+        )
+
+        return {
+            "buyer_agent": buyer_result,
+            "verification": None,
+            "intent_decision": None,
+            "merchant_policy": None,
+            "final_decision": {
+                "decision": buyer_result.decision,
+                "reason_code": buyer_result.reason_code,
+                "message": buyer_result.message,
+                "violations": [],
+            },
+            "ready_for_payment": False,
+        }
+
+    # --------------------------------------------------------
+    # 4. Verify the exact proposed transaction
+    # --------------------------------------------------------
+
+    (
+        verification_result,
+        intent_decision,
+        policy_result,
+        final_decision,
+    ) = evaluate_purchase_request(
+        intent_record,
+        buyer_result.proposed_purchase,
+    )
+    persist_buyer_agent_audit_logs(
+        db=db,
+        intent_id=intent_id,
+        buyer_result=buyer_result,
+        verification_result=verification_result,
+        policy_result=policy_result,
+        final_decision=final_decision,
+    )
+
+    # --------------------------------------------------------
+    # 5. Return the complete authorization result
+    # --------------------------------------------------------
+
+    return {
+        "buyer_agent": buyer_result,
+        "verification": verification_result,
+        "intent_decision": intent_decision,
+        "merchant_policy": policy_result,
+        "final_decision": final_decision,
+        "ready_for_payment": (
+            final_decision["decision"]
+            == DecisionType.ALLOW
+        ),
+    }
