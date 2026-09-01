@@ -58,8 +58,10 @@ The screenshot workflow is deliberately split into discovery and financial
 authorization:
 
 1. `POST /visual-intents/analyze` reads a PNG, JPEG, or WebP screenshot using
-   free local Tesseract OCR by default and matches the extracted candidate
-   against approved catalogs. OpenAI Vision remains an optional mode.
+   a local Ollama vision model by default and matches the extracted candidate
+   against approved catalogs. If Ollama or its model is unavailable, the same
+   request automatically falls back to free local Tesseract OCR plus the
+   optional product hint. OpenAI Vision remains an optional mode.
 2. A displayed screenshot price is never interpreted as a budget. Missing
    budgets return `MAX_BUDGET_REQUIRED`.
 3. `POST /visual-intents/confirm` requires the exact merchant, product, maximum
@@ -71,15 +73,26 @@ authorization:
    completes Razorpay Checkout and server-side verification.
 
 Screenshots are size/type checked and processed without being persisted by the
-visual-intent service. Local OCR keeps screenshot bytes on the machine. Install
-Tesseract on Windows with:
+visual-intent service. Both local analyzers keep screenshot bytes on the
+machine. For image-only recognition, install Ollama and pull the small vision
+model:
+
+```powershell
+winget install --id Ollama.Ollama --exact
+ollama pull qwen2.5vl:3b
+```
+
+The API reports readiness at `GET /visual-intents/configuration`. If the model
+is not installed, OCR fallback still works. Install Tesseract on Windows with:
 
 ```powershell
 winget install --id tesseract-ocr.tesseract --exact
 ```
 
-Use a full product-page screenshot containing the visible product name/model.
-An isolated product photo may correctly return `VISUAL_CONFIDENCE_TOO_LOW`.
+Use a full product-page screenshot when possible. The local vision model can
+also identify an isolated product photo; OCR fallback may correctly return
+`VISUAL_CONFIDENCE_TOO_LOW` for an image without readable text unless a product
+hint is entered.
 Set `VISUAL_ANALYZER_MODE=OPENAI_VISION` only when paid OpenAI API access is
 available.
 

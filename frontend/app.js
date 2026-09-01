@@ -319,7 +319,10 @@ async function initialize() {
       api("/payments/razorpay-test/configuration"),
     ]);
     modeBadge.textContent = configuration.mode.replaceAll("_", " ");
-    privacyStatus.classList.toggle("ready", configuration.local_ocr_available);
+    privacyStatus.classList.toggle(
+      "ready",
+      configuration.local_vision_available || configuration.local_ocr_available,
+    );
     privacyStatus.lastChild.textContent = configuration.sends_images_to_external_provider
       ? " External visual provider"
       : " Private local analysis";

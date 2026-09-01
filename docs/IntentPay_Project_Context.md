@@ -2020,7 +2020,7 @@ configured. Setup instructions are in `docs/Razorpay_Test_Mode_Setup.md`.
 
 **IntentPay is an AI-native commerce trust and orchestration layer designed to let AI buyers transact with merchants safely while enabling legitimate merchant growth. It converts human intent into structured authorization, filters and ranks merchant products, explains trade-offs, controls budget-stretch behavior, verifies the final proposed purchase, enforces merchant policy, and ensures that only explainable, bounded, gated, and auditable actions reach an internal simulator or Razorpay Test Mode boundary.**
 
-All roadmap sections through Level 47 now have implemented code, verified tests,
+All roadmap sections through Level 53 now have implemented code, verified tests,
 or a completed project artifact appropriate to that section. Production
 authentication, deployment, frontend, real-user evaluation, and credentialed
 provider validation remain explicitly outside the current buildathon proof.
@@ -2063,11 +2063,13 @@ affiliation.
 # 50. Screenshot-to-Intent Candidate — Implemented
 
 `POST /visual-intents/analyze` accepts Base64 PNG, JPEG, or WebP data up to
-5 MB. Free local Tesseract OCR is the default analyzer and keeps screenshot
-bytes on the user's machine. It extracts visible product-page text and combines
-it with an explicit user hint when supplied. OpenAI Vision remains an optional
-mode for accounts with API credits. Extracted image text is explicitly treated
-as untrusted data, low-confidence results return
+5 MB. A local Ollama vision model is the default analyzer and keeps screenshot
+bytes on the user's machine. It can identify an isolated product image using
+visual appearance as well as visible text. If Ollama or its model is not
+available, the same request falls back to free local Tesseract OCR and combines
+the extracted product-page text with an explicit user hint when supplied.
+OpenAI Vision remains an optional mode for accounts with API credits. Extracted
+image text is explicitly treated as untrusted data, low-confidence results return
 `VISUAL_CONFIDENCE_TOO_LOW`, and the service does not retain uploaded bytes.
 
 A screenshot price is never copied into `IntentMandate.max_budget`. If the user
@@ -2103,6 +2105,24 @@ complete Razorpay Checkout; server signature verification and signed webhook
 processing remain mandatory.
 
 Automated coverage proves the complete boundary using a mocked Razorpay Test
-transport without network calls or real money. The full suite now contains 123
+transport without network calls or real money. The full suite now contains 125
 passing tests. A credentialed real-account smoke test still requires the
 project owner's Razorpay Test Mode credentials.
+
+---
+
+# 53. Private Local Vision with OCR Fallback — Implemented
+
+`VISUAL_ANALYZER_MODE=LOCAL_VISION` uses the Ollama HTTP API at
+`OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`) and the configured
+`LOCAL_VISION_MODEL` (default `qwen2.5vl:3b`). The model receives the image as
+local Base64 bytes and must return a constrained JSON product candidate. The
+deterministic catalog matcher, budget checks, confirmation boundary, and Trust
+Gate remain authoritative; the model never authorizes a payment.
+
+When the local runtime is missing, its model is not pulled, or inference
+returns an invalid response, the service transparently uses the existing OCR
+analyzer. `GET /visual-intents/configuration` exposes both readiness flags and
+the active model so a demo can clearly show whether it used `LOCAL_VISION` or
+`LOCAL_OCR`. No screenshot is persisted or sent to an external provider in
+either local mode.

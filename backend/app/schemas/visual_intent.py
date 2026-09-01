@@ -33,7 +33,7 @@ class VisualProductCandidate(BaseModel):
     merchant_domain: str | None = Field(default=None, max_length=253)
     visible_features: list[str] = Field(default_factory=list, max_length=20)
     confidence: float = Field(ge=0, le=1)
-    extraction_method: Literal["OPENAI_VISION", "LOCAL_OCR"] = "OPENAI_VISION"
+    extraction_method: Literal["OPENAI_VISION", "LOCAL_VISION", "LOCAL_OCR"] = "OPENAI_VISION"
 
     @field_validator("merchant_domain", mode="before")
     @classmethod
@@ -101,7 +101,9 @@ class VisualIntentConfirmationResponse(BaseModel):
 class VisualAnalyzerConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["LOCAL_OCR", "OPENAI_VISION"]
+    mode: Literal["LOCAL_VISION", "LOCAL_OCR", "OPENAI_VISION"]
+    local_vision_available: bool
+    local_vision_model: str
     local_ocr_available: bool
     openai_configured: bool
     sends_images_to_external_provider: bool
