@@ -30,3 +30,12 @@ def test_home_flow_does_not_require_an_image(client):
     assert "No image required" in response.text
     assert 'id="homeImageInput" type="file"' in response.text
     assert 'id="homeImageInput" type="file" required' not in response.text
+    assert "orb-core" in response.text
+
+
+def test_home_motion_styles_include_accessible_reduced_motion_fallback(client):
+    stylesheet = client.get("/assets/home.css")
+
+    assert stylesheet.status_code == 200
+    assert "@keyframes orbFloat" in stylesheet.text
+    assert "prefers-reduced-motion" in stylesheet.text
