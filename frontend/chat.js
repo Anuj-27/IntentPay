@@ -9,6 +9,11 @@ const attachmentImage = document.querySelector("#attachmentImage");
 const attachmentName = document.querySelector("#attachmentName");
 const removeAttachment = document.querySelector("#removeAttachment");
 const sendButton = document.querySelector("#sendButton");
+const briefCategory = document.querySelector("#briefCategory");
+const briefBudget = document.querySelector("#briefBudget");
+const briefQuantity = document.querySelector("#briefQuantity");
+const briefPreferences = document.querySelector("#briefPreferences");
+const briefStatus = document.querySelector("#briefStatus");
 
 const messages = [
   {
@@ -77,6 +82,19 @@ function removeTyping() {
   messagesElement.querySelector(".typing")?.remove();
 }
 
+function updateBrief(intent, nextAction) {
+  if (!intent) return;
+  briefCategory.textContent = intent.category || "Not set yet";
+  briefBudget.textContent = intent.max_budget === null || intent.max_budget === undefined
+    ? "Not set yet"
+    : rupees(intent.max_budget);
+  briefQuantity.textContent = intent.quantity || 1;
+  briefPreferences.textContent = intent.preferences?.length
+    ? intent.preferences.join(", ")
+    : (intent.brand || "Add in chat");
+  briefStatus.textContent = nextAction === "CHOOSE_PRODUCT" ? "Ready to choose" : "Updated";
+}
+
 async function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -143,6 +161,7 @@ async function sendMessage(event) {
       suggestions: payload.suggestions,
       visual_candidate: payload.visual_candidate,
     });
+    updateBrief(payload.intent, payload.next_action);
     clearImage();
   } catch (error) {
     messages.push({ role: "assistant", content: error.message || "The assistant could not complete that request." });
@@ -176,6 +195,15 @@ quickPrompts.addEventListener("click", (event) => {
   chatInput.value = button.dataset.prompt;
   chatInput.focus();
 });
+
+document.querySelectorAll(".task-card[data-prompt]").forEach((button) => {
+  button.addEventListener("click", () => {
+    chatInput.value = button.dataset.prompt;
+    chatInput.focus();
+  });
+});
+
+document.querySelector(".image-task")?.addEventListener("click", () => chatImageInput.click());
 
 messagesElement.addEventListener("click", (event) => {
   const button = event.target.closest("[data-verify-href]");
