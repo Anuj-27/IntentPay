@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="IntentPay converts product screenshots into bounded, verified purchase intents.">
+  <title>IntentPay — Verified Visual Purchase Intent</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="IntentPay home">
+      <span class="brand-mark">IP</span>
+      <span>IntentPay</span>
+    </a>
+    <div class="header-status" id="privacyStatus">
+      <span class="status-dot" aria-hidden="true"></span>
+      Checking local analyzer
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">AI-native commerce safety</p>
+        <h1>Turn a product screenshot into a bounded purchase intent.</h1>
+        <p class="hero-copy">
+          IntentPay reads visible product information, verifies it against an
+          approved merchant catalog, and keeps payment behind deterministic
+          budget, confirmation, policy, and Trust Gate checks.
+        </p>
+      </div>
+      <div class="safety-stack" aria-label="Core guarantees">
+        <div><strong>01</strong><span>Screenshot is discovery, not authority</span></div>
+        <div><strong>02</strong><span>Budget is explicit and quantity-aware</span></div>
+        <div><strong>03</strong><span>Payment requires Trust Gate ALLOW</span></div>
+      </div>
+    </section>
+
+    <section class="flow-strip" aria-label="Purchase flow">
+      <div class="flow-step active" data-step="analyze"><span>1</span>Analyze</div>
+      <div class="flow-line"></div>
+      <div class="flow-step" data-step="verify"><span>2</span>Verify</div>
+      <div class="flow-line"></div>
+      <div class="flow-step" data-step="authorize"><span>3</span>Authorize</div>
+    </section>
+
+    <section class="workspace">
+      <form class="panel input-panel" id="analysisForm">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Visual intent</p>
+            <h2>Choose a product screenshot</h2>
+          </div>
+          <span class="mode-badge" id="modeBadge">LOCAL OCR</span>
+        </div>
+
+        <label class="drop-zone" id="dropZone" for="imageInput">
+          <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" required>
+          <span class="upload-symbol">+</span>
+          <strong>Drop a screenshot here</strong>
+          <span>or click to choose PNG, JPEG, or WebP · maximum 5 MB</span>
+          <img id="imagePreview" alt="Selected product screenshot preview">
+        </label>
+        <p class="file-name" id="fileName">No image selected</p>
+
+        <label class="field">
+          <span>Product hint <em>optional</em></span>
+          <input id="productHint" type="text" maxlength="300" placeholder="Example: Samsung Galaxy A56 256GB">
+          <small>Useful when the screenshot is only a product photo.</small>
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Maximum budget (₹)</span>
+            <input id="maxBudget" type="number" min="1" step="1" placeholder="50000">
+          </label>
+          <label class="field quantity-field">
+            <span>Quantity</span>
+            <input id="quantity" type="number" min="1" max="100" value="1" required>
+          </label>
+        </div>
+
+        <button class="primary-button" id="analyzeButton" type="submit">
+          Analyze and verify
+        </button>
+        <p class="privacy-note">
+          <span aria-hidden="true">●</span>
+          Local OCR keeps screenshot bytes on this machine. Images are not retained.
+        </p>
+      </form>
+
+      <section class="panel result-panel" aria-live="polite" aria-busy="false">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Decision evidence</p>
+            <h2>Verification result</h2>
+          </div>
+          <span class="result-status neutral" id="resultStatus">Waiting</span>
+        </div>
+
+        <div id="resultContent" class="empty-state">
+          <div class="empty-orbit"><span></span></div>
+          <h3>No analysis yet</h3>
+          <p>Upload a screenshot to see product evidence, catalog price, budget checks, and the next safe action.</p>
+        </div>
+      </section>
+    </section>
+
+    <section class="proof-grid">
+      <article>
+        <span class="proof-value" id="categoryCount">—</span>
+        <h3>Supported categories</h3>
+        <p>Typed catalogs using one category-independent safety pipeline.</p>
+      </article>
+      <article>
+        <span class="proof-value">500/500</span>
+        <h3>Safety benchmark</h3>
+        <p>Expected decisions passed with zero unsafe ALLOW outcomes.</p>
+      </article>
+      <article>
+        <span class="proof-value">4 gates</span>
+        <h3>Financial boundary</h3>
+        <p>Intent, verification, merchant policy, and Trust Gate.</p>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <span>IntentPay buildathon proof</span>
+    <a href="/docs" target="_blank" rel="noreferrer">Open API documentation</a>
+  </footer>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

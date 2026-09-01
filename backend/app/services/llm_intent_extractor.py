@@ -4,14 +4,17 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from backend.app.schemas.intent import (
-    DEFAULT_MERCHANT_ID,
     IntentMandate,
 )
+from backend.app.data.categories import canonicalize_category
 from backend.app.services.intent_extractor import (
     autonomous_selection_is_explicitly_allowed,
     extract_budget_from_text,
     extract_quantity_from_text,
     subscription_is_explicitly_allowed,
+)
+from backend.app.services.merchant_service import (
+    find_merchant_contracts_for_category,
 )
 
 
@@ -35,8 +38,9 @@ Rules:
 7. subscription_allowed can be true only when explicitly authorized.
 8. Preserve the user's semantic intent.
 9. You only extract intent. You do not authorize or execute payments.
-10. Use the default merchant ID unless the application explicitly supplies a
-    merchant through a trusted channel.
+10. Product categories may include headphones, smartphones, laptops,
+    smartwatches, and cameras. Merchant selection is performed by trusted
+    application code, not by you.
 """
 
 
@@ -71,12 +75,23 @@ def extract_intent_with_llm(
     if intent is None:
         raise ValueError("The LLM could not produce a valid IntentMandate.")
 
+    canonical_category = canonicalize_category(intent.product_category)
+    if canonical_category is None:
+        raise ValueError("The extracted product category is not supported.")
+    matching_merchants = find_merchant_contracts_for_category(canonical_category)
+    if not matching_merchants:
+        raise ValueError("No approved merchant supports the extracted category.")
+    intent = intent.model_copy(
+        update={
+            "product_category": canonical_category,
+            "merchant_id": matching_merchants[0].merchant.merchant_id,
+        }
+    )
+
     if intent.max_budget != explicit_budget:
         raise ValueError("The extracted budget does not match the user's text.")
     if intent.quantity != explicit_quantity:
         raise ValueError("The extracted quantity does not match the user's text.")
-    if intent.merchant_id != DEFAULT_MERCHANT_ID:
-        raise ValueError("The LLM selected an unauthorized merchant.")
     if (
         intent.subscription_allowed
         and not subscription_is_explicitly_allowed(message)

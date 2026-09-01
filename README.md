@@ -27,7 +27,8 @@ python -m alembic upgrade head
 python -m uvicorn backend.app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000/docs` for the interactive API documentation.
+Open `http://127.0.0.1:8000/` for the visual demo interface or
+`http://127.0.0.1:8000/docs` for interactive API documentation.
 
 ## Test
 
@@ -37,6 +38,50 @@ python -m pytest -q
 
 The tests use an in-memory SQLite database and do not call OpenAI or the
 configured PostgreSQL database.
+
+## Multi-category and visual intents
+
+The demo merchant registry now covers headphones, smartphones, laptops,
+smartwatches, and cameras across three mock merchant contracts. These are
+clearly labelled demo catalogs under reserved `.example` domains; they do not
+claim live inventory or an affiliation with the product brands.
+
+Discover supported categories and merchant catalogs with:
+
+```text
+GET /categories
+GET /merchants
+GET /products?merchant_id=MERCHANT-002&category=smartphones
+```
+
+The screenshot workflow is deliberately split into discovery and financial
+authorization:
+
+1. `POST /visual-intents/analyze` reads a PNG, JPEG, or WebP screenshot using
+   free local Tesseract OCR by default and matches the extracted candidate
+   against approved catalogs. OpenAI Vision remains an optional mode.
+2. A displayed screenshot price is never interpreted as a budget. Missing
+   budgets return `MAX_BUDGET_REQUIRED`.
+3. `POST /visual-intents/confirm` requires the exact merchant, product, maximum
+   budget, quantity, and `confirmed: true` before persisting a mandate.
+4. The confirmation response contains a `razorpay_test_request` only when the
+   deterministic Buyer Agent, verifier, merchant policy, and Trust Gate return
+   `ALLOW`.
+5. Submit that object to `POST /payments/razorpay-test/orders`; the user still
+   completes Razorpay Checkout and server-side verification.
+
+Screenshots are size/type checked and processed without being persisted by the
+visual-intent service. Local OCR keeps screenshot bytes on the machine. Install
+Tesseract on Windows with:
+
+```powershell
+winget install --id tesseract-ocr.tesseract --exact
+```
+
+Use a full product-page screenshot containing the visible product name/model.
+An isolated product photo may correctly return `VISUAL_CONFIDENCE_TOO_LOW`.
+Set `VISUAL_ANALYZER_MODE=OPENAI_VISION` only when paid OpenAI API access is
+available.
 
 ## Evaluation and demo
 
@@ -76,7 +121,8 @@ reconciliation. See `docs/Razorpay_Test_Mode_Setup.md` for the complete flow.
 
 ## Safe purchase flow
 
-1. `POST /intents/parse` or `POST /intents/parse/llm` to extract an intent.
+1. `POST /intents/parse`, `POST /intents/parse/llm`, or
+   `POST /visual-intents/analyze` to extract an intent candidate.
 2. `POST /intents` to persist the approved mandate.
 3. `POST /products/filter` to compare valid products.
 4. If autonomous selection is disabled, call

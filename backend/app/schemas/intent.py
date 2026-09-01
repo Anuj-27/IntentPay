@@ -8,6 +8,9 @@ from pydantic import (
     model_validator,
 )
 
+from backend.app.data.categories import canonicalize_category
+from backend.app.schemas.product import ProductAttributeValue
+
 
 PreferenceLevel = Literal["ANY", "PREFERRED", "EXACT"]
 PurchasePriority = Literal["CHEAPEST", "BEST_VALUE", "HIGHEST_RATING"]
@@ -38,12 +41,14 @@ class IntentMandate(BaseModel):
 
     priority: PurchasePriority = "BEST_VALUE"
     preferred_features: list[str] = Field(default_factory=list)
+    required_attributes: dict[str, ProductAttributeValue] = Field(default_factory=dict)
 
     @field_validator("product_category", mode="before")
     @classmethod
     def normalize_category(cls, value):
         if isinstance(value, str):
-            return value.strip().casefold()
+            normalized = value.strip().casefold()
+            return canonicalize_category(normalized) or normalized
         return value
 
     @field_validator("merchant_id", mode="before")
@@ -76,6 +81,17 @@ class IntentMandate(BaseModel):
                 normalized.append(cleaned)
                 seen.add(key)
         return normalized
+
+    @field_validator("required_attributes", mode="before")
+    @classmethod
+    def normalize_required_attribute_keys(cls, value):
+        if value is None:
+            return {}
+        return {
+            str(key).strip().casefold(): attribute_value
+            for key, attribute_value in value.items()
+            if str(key).strip()
+        }
 
     @model_validator(mode="after")
     def validate_preferences(self):

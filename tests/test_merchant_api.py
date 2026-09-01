@@ -29,9 +29,13 @@ def test_merchant_discovery_returns_profile(client):
     assert response.status_code == 200
 
     body = response.json()
-    assert body["count"] == 1
+    assert body["count"] == 3
     assert body["merchants"][0]["merchant_id"] == "MERCHANT-001"
     assert body["merchants"][0]["display_name"] == "DemoStore"
+    assert {
+        merchant["merchant_id"]
+        for merchant in body["merchants"]
+    } == {"MERCHANT-001", "MERCHANT-002", "MERCHANT-003"}
     assert body["merchants"][0]["active"] is True
 
 

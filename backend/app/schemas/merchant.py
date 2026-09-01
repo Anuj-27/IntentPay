@@ -39,6 +39,7 @@ class MerchantProfile(BaseModel):
     )
     currency: Literal["INR"] = "INR"
     active: bool = False
+    official_domains: list[str] = Field(default_factory=list)
     capabilities: MerchantCapabilities
     policy: MerchantPolicy
 

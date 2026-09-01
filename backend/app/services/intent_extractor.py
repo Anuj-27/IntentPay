@@ -1,6 +1,10 @@
 import re
 
+from backend.app.data.categories import detect_category
 from backend.app.schemas.intent import IntentMandate
+from backend.app.services.merchant_service import (
+    find_merchant_contracts_for_category,
+)
 
 
 AMOUNT_PATTERN = r"(?P<amount>\d{1,3}(?:,\d{2,3})+|\d{3,7})"
@@ -89,10 +93,14 @@ def _preference_level(text: str, value: str) -> str:
 def extract_intent_from_text(message: str) -> IntentMandate:
     text = message.casefold()
 
-    if "headphone" in text:
-        product_category = "headphones"
-    else:
+    product_category = detect_category(message)
+    if product_category is None:
         raise ValueError("Could not determine product category.")
+
+    matching_merchants = find_merchant_contracts_for_category(product_category)
+    if not matching_merchants:
+        raise ValueError("No approved merchant supports the requested category.")
+    merchant_id = matching_merchants[0].merchant.merchant_id
 
     max_budget = extract_budget_from_text(message)
     quantity = extract_quantity_from_text(message)
@@ -100,6 +108,12 @@ def extract_intent_from_text(message: str) -> IntentMandate:
     known_brands = {
         "sony": "Sony",
         "jbl": "JBL",
+        "google": "Google",
+        "samsung": "Samsung",
+        "lenovo": "Lenovo",
+        "asus": "ASUS",
+        "fitbit": "Fitbit",
+        "canon": "Canon",
     }
     brand = next(
         (canonical for token, canonical in known_brands.items() if token in text),
@@ -111,7 +125,7 @@ def extract_intent_from_text(message: str) -> IntentMandate:
         else "ANY"
     )
 
-    known_colors = ("black", "blue", "white", "red")
+    known_colors = ("black", "blue", "white", "red", "green", "grey", "silver")
     color = next((known_color for known_color in known_colors if known_color in text), None)
     color_preference = (
         _preference_level(text, color)
@@ -127,6 +141,13 @@ def extract_intent_from_text(message: str) -> IntentMandate:
         "battery": "battery",
         "microphone": "microphone",
         "mic": "microphone",
+        "5g": "5G",
+        "oled": "OLED display",
+        "amoled": "AMOLED display",
+        "gps": "GPS",
+        "sleep tracking": "sleep tracking",
+        "4k": "4K video",
+        "backlit keyboard": "backlit keyboard",
     }
     preferred_features = []
     for phrase, feature in feature_map.items():
@@ -140,6 +161,7 @@ def extract_intent_from_text(message: str) -> IntentMandate:
         priority = "HIGHEST_RATING"
 
     return IntentMandate(
+        merchant_id=merchant_id,
         product_category=product_category,
         max_budget=max_budget,
         quantity=quantity,

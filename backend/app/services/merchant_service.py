@@ -24,6 +24,20 @@ def list_merchant_contracts() -> list[MerchantContract]:
     ]
 
 
+def find_merchant_contracts_for_category(
+    category: str,
+) -> list[MerchantContract]:
+    normalized_category = category.strip().casefold()
+    return [
+        contract
+        for contract in list_merchant_contracts()
+        if any(
+            product.category.casefold() == normalized_category
+            for product in contract.catalog.products
+        )
+    ]
+
+
 def find_catalog_product(
     contract: MerchantContract,
     product_id: str,

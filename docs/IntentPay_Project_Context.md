@@ -2024,3 +2024,85 @@ All roadmap sections through Level 47 now have implemented code, verified tests,
 or a completed project artifact appropriate to that section. Production
 authentication, deployment, frontend, real-user evaluation, and credentialed
 provider validation remain explicitly outside the current buildathon proof.
+
+---
+
+# 48. Generic Multi-Category Catalog — Implemented
+
+IntentPay now supports a registry of headphones, smartphones, laptops,
+smartwatches, and cameras. Product contracts include model, variant, currency,
+URLs, and generic typed attributes. Attribute requirements are deterministically
+enforced by the existing product filter. `GET /categories` exposes category
+aliases, common attributes, and the merchants supporting each category.
+
+The five categories are a representative demo set, not a claim that a static
+fixture contains every retail product. The schema and filtering path are
+category-independent so authenticated merchant feeds can add further categories
+without modifying the payment authorization boundary.
+
+---
+
+# 49. Multiple Approved Merchant Contracts — Implemented
+
+The registry contains three active mock merchant contracts with separate
+catalogs, policies, capabilities, and reserved `.example` official domains:
+
+```text
+MERCHANT-001  DemoStore   headphones
+MERCHANT-002  DemoTech    smartphones, laptops
+MERCHANT-003  DemoVision  smartwatches, cameras
+```
+
+The original merchant and its four headphone products remain unchanged for
+backward compatibility. Category extraction routes only to merchants present in
+the trusted registry. Demo domains do not imply live merchant or brand
+affiliation.
+
+---
+
+# 50. Screenshot-to-Intent Candidate — Implemented
+
+`POST /visual-intents/analyze` accepts Base64 PNG, JPEG, or WebP data up to
+5 MB. Free local Tesseract OCR is the default analyzer and keeps screenshot
+bytes on the user's machine. It extracts visible product-page text and combines
+it with an explicit user hint when supplied. OpenAI Vision remains an optional
+mode for accounts with API credits. Extracted image text is explicitly treated
+as untrusted data, low-confidence results return
+`VISUAL_CONFIDENCE_TOO_LOW`, and the service does not retain uploaded bytes.
+
+A screenshot price is never copied into `IntentMandate.max_budget`. If the user
+does not explicitly provide a maximum amount, the response is
+`MAX_BUDGET_REQUIRED` even when a price is visible.
+
+---
+
+# 51. Verified Visual Catalog Matching — Implemented
+
+Visual candidates are matched deterministically against active, in-stock
+products from approved merchant contracts. Category, brand, model, variant,
+name-token evidence, and visible merchant domain contribute to or constrain the
+match. Unsupported domains, absent products, ambiguous matches, low confidence,
+and over-budget totals fail closed with structured reason codes.
+
+`POST /visual-intents/confirm` requires `confirmed: true`, exact merchant and
+product IDs, quantity, and an explicit maximum budget. It reloads current
+catalog price and stock, rejects an excessive total, persists the mandate, and
+records the confirmed selection. The analysis response itself cannot execute a
+purchase.
+
+---
+
+# 52. Visual Intent to Razorpay Test Checkout — Implemented
+
+After confirmation, the existing Buyer Agent, Recommendation Integrity guard,
+Intent Verifier, Merchant Policy Engine, and Trust Gate run unchanged. Only an
+`ALLOW` response includes a ready-to-submit `razorpay_test_request`. That object
+is accepted by `POST /payments/razorpay-test/orders`, which creates the provider
+order only when Test Mode credentials are configured. The user must still
+complete Razorpay Checkout; server signature verification and signed webhook
+processing remain mandatory.
+
+Automated coverage proves the complete boundary using a mocked Razorpay Test
+transport without network calls or real money. The full suite now contains 123
+passing tests. A credentialed real-account smoke test still requires the
+project owner's Razorpay Test Mode credentials.

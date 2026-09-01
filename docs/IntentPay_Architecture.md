@@ -5,6 +5,11 @@
 ```mermaid
 flowchart TD
     U[User request] --> L[Deterministic or LLM intent extraction]
+    SS[Product screenshot] --> VM[Visual candidate extraction]
+    VM --> MC[Approved catalog match]
+    MC --> UC{Explicit product and budget confirmation}
+    UC -->|confirmed| M
+    UC -->|missing or ambiguous| U
     L --> M[Persisted Intent Mandate]
     M --> C[Agent-readable merchant contract and catalog]
     C --> F[Hard constraint filter]
@@ -34,6 +39,21 @@ flowchart TD
 The LLM-facing component ends at structured intent extraction. It cannot call a
 provider directly. Only deterministic code behind the Trust Gate can construct
 a provider command.
+
+The screenshot is untrusted discovery evidence. Its displayed price is not a
+budget, its logo is not proof of an official merchant, and visual extraction is
+not payment permission. A candidate must match an active merchant contract and
+current catalog product, then the user must confirm the exact product and a
+maximum amount before IntentPay persists a mandate.
+
+## Catalog model
+
+Products retain common commerce fields while category-specific specifications
+live in typed JSON-compatible `attributes`. The same deterministic filter can
+therefore enforce requirements such as laptop RAM, phone storage, watch GPS,
+or camera sensor without category-specific payment logic. The current static
+catalogs are reproducible demo fixtures. A production deployment would replace
+them with authenticated merchant catalog and inventory connectors.
 
 ## Payment state and uncertainty
 
@@ -77,4 +97,3 @@ AuditLogDB
 
 Secrets and signatures are not stored in audit details. Correlation IDs connect
 intent, Trust Gate, payment, provider, webhook, and reconciliation evidence.
-

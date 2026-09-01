@@ -1,6 +1,9 @@
 from typing import Annotated
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAIError
 from sqlalchemy.orm import Session
 
@@ -52,6 +55,13 @@ from backend.app.schemas.razorpay import (
     RazorpayReconciliationResponse,
     RazorpayWebhookResponse,
 )
+from backend.app.schemas.visual_intent import (
+    VisualAnalyzerConfiguration,
+    VisualIntentAnalysisResponse,
+    VisualIntentConfirmationRequest,
+    VisualIntentConfirmationResponse,
+    VisualIntentRequest,
+)
 
 
 from backend.app.services.product_filter import filter_products
@@ -68,6 +78,7 @@ from backend.app.services.merchant_service import (
     find_merchant_contract,
     list_merchant_contracts,
 )
+from backend.app.data.categories import CATEGORIES, canonicalize_category
 from backend.app.services.trust_gate import evaluate_trust_gate
 from backend.app.services.protocol_service import (
     build_commerce_context,
@@ -101,6 +112,12 @@ from backend.app.services.razorpay_service import (
     reconcile_razorpay_payment,
     verify_razorpay_checkout_response,
 )
+from backend.app.services.visual_intent_service import (
+    build_visual_analysis,
+    get_configured_visual_analyzer,
+    get_visual_analyzer_configuration,
+)
+from backend.app.services.openai_error_service import describe_openai_error
 from backend.app.schemas.decision import DecisionType
 from backend.app.schemas.payment import (
     PaymentExecutionRequest,
@@ -135,6 +152,18 @@ app = FastAPI(
     version="0.1.0"
 )
 
+FRONTEND_DIRECTORY = Path(__file__).resolve().parents[2] / "frontend"
+app.mount(
+    "/assets",
+    StaticFiles(directory=FRONTEND_DIRECTORY),
+    name="frontend-assets",
+)
+
+
+@app.get("/", include_in_schema=False)
+def get_demo_interface():
+    return FileResponse(FRONTEND_DIRECTORY / "index.html")
+
 
 @app.middleware("http")
 async def add_safe_response_headers(request: Request, call_next):
@@ -166,6 +195,10 @@ def require_razorpay_test_client(
             },
         )
     return client
+
+
+def get_visual_intent_analyzer():
+    return get_configured_visual_analyzer()
 
 
 def get_intent_or_404(db: Session, intent_id: str):
@@ -380,6 +413,183 @@ def get_merchants():
     }
 
 
+@app.get("/categories")
+def get_categories():
+    contracts = list_merchant_contracts()
+    return {
+        "count": len(CATEGORIES),
+        "categories": [
+            {
+                "category_id": category.category_id,
+                "display_name": category.display_name,
+                "aliases": category.aliases,
+                "common_attributes": category.common_attributes,
+                "merchant_ids": [
+                    contract.merchant.merchant_id
+                    for contract in contracts
+                    if any(
+                        product.category == category.category_id
+                        for product in contract.catalog.products
+                    )
+                ],
+            }
+            for category in CATEGORIES
+        ],
+    }
+
+
+@app.post(
+    "/visual-intents/analyze",
+    response_model=VisualIntentAnalysisResponse,
+)
+def analyze_visual_intent(
+    request: VisualIntentRequest,
+    analyzer=Depends(get_visual_intent_analyzer),
+):
+    try:
+        return build_visual_analysis(request, analyzer)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": "VISUAL_INTENT_INVALID",
+                "message": str(error),
+            },
+        ) from error
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "reason_code": "VISUAL_MODEL_NOT_CONFIGURED",
+                "message": str(error),
+            },
+        ) from error
+    except OpenAIError as error:
+        provider_error = describe_openai_error(
+            error,
+            default_reason_code="VISUAL_MODEL_PROVIDER_ERROR",
+            default_message="The visual product model request failed.",
+        )
+        raise HTTPException(
+            status_code=provider_error.http_status,
+            detail={
+                "reason_code": provider_error.reason_code,
+                "message": provider_error.message,
+            },
+        ) from error
+
+
+@app.get(
+    "/visual-intents/configuration",
+    response_model=VisualAnalyzerConfiguration,
+)
+def get_visual_configuration():
+    return get_visual_analyzer_configuration()
+
+
+@app.post(
+    "/visual-intents/confirm",
+    response_model=VisualIntentConfirmationResponse,
+    status_code=201,
+)
+def confirm_visual_intent(
+    request: VisualIntentConfirmationRequest,
+    db: Session = Depends(get_db),
+):
+    merchant_contract = get_merchant_or_404(request.merchant_id)
+    require_merchant_access(
+        merchant_contract,
+        required_capabilities=("catalog_search", "inventory_check", "checkout"),
+    )
+    product = find_catalog_product(merchant_contract, request.product_id)
+    if product is None or not product.in_stock:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "reason_code": "VERIFIED_PRODUCT_NOT_AVAILABLE",
+                "message": "The confirmed product is not available in the merchant catalog.",
+            },
+        )
+
+    verified_total = product.price * request.quantity
+    if verified_total > request.max_budget:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": "BUDGET_EXCEEDED",
+                "message": (
+                    f"The verified total is ₹{verified_total}, which exceeds "
+                    f"the maximum budget of ₹{request.max_budget}."
+                ),
+            },
+        )
+
+    intent = IntentMandate(
+        merchant_id=request.merchant_id,
+        product_category=product.category,
+        max_budget=request.max_budget,
+        quantity=request.quantity,
+        brand=product.brand,
+        brand_preference="EXACT",
+        subscription_allowed=False,
+        autonomous_selection_allowed=False,
+    )
+    intent_record = create_intent_record(db, intent)
+    intent_record = confirm_product_selection(
+        db,
+        intent_record,
+        product.product_id,
+    )
+    evaluation = evaluate_intent_pipeline(
+        intent=intent,
+        merchant_contract=merchant_contract,
+        confirmed_product_id=product.product_id,
+    )
+    persist_buyer_agent_audit_logs(
+        db=db,
+        intent_record=intent_record,
+        buyer_result=evaluation.buyer_agent,
+        verification_result=(
+            evaluation.verification.model_dump()
+            if evaluation.verification is not None
+            else None
+        ),
+        policy_result=(
+            evaluation.merchant_policy.model_dump()
+            if evaluation.merchant_policy is not None
+            else None
+        ),
+        final_decision=evaluation.final_decision.model_dump(),
+    )
+
+    razorpay_test_request = None
+    next_step = "Resolve the Trust Gate decision before payment."
+    if (
+        evaluation.final_decision.decision == DecisionType.ALLOW
+        and evaluation.buyer_agent.proposed_purchase is not None
+    ):
+        razorpay_test_request = {
+            "intent_id": intent_record.intent_id,
+            "purchase": evaluation.buyer_agent.proposed_purchase.model_dump(mode="json"),
+            "idempotency_key": f"visual-{intent_record.intent_id}",
+        }
+        next_step = (
+            "Submit razorpay_test_request to POST "
+            "/payments/razorpay-test/orders. The user must still complete "
+            "Razorpay Checkout."
+        )
+
+    return {
+        "intent_id": intent_record.intent_id,
+        "intent": intent_to_dict(intent_record),
+        "merchant_id": request.merchant_id,
+        "product": product,
+        "evaluation": evaluation.model_dump(mode="json"),
+        "razorpay_test_request": razorpay_test_request,
+        "next_step": next_step,
+    }
+
+
 @app.get(
     "/merchants/{merchant_id}",
     response_model=MerchantContract,
@@ -507,8 +717,11 @@ def select_intent_product(
 
 
 @app.get("/products")
-def get_products():
-    merchant_contract = get_merchant_or_404(DEFAULT_MERCHANT_ID)
+def get_products(
+    merchant_id: str = Query(default=DEFAULT_MERCHANT_ID),
+    category: str | None = Query(default=None),
+):
+    merchant_contract = get_merchant_or_404(merchant_id)
     require_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -517,6 +730,21 @@ def get_products():
         ),
     )
     products = merchant_contract.catalog.products
+    if category is not None:
+        canonical_category = canonicalize_category(category)
+        if canonical_category is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "reason_code": "CATEGORY_NOT_SUPPORTED",
+                    "message": f"Category '{category}' is not supported.",
+                },
+            )
+        products = [
+            product
+            for product in products
+            if product.category == canonical_category
+        ]
 
     return {
         "merchant_id": merchant_contract.merchant.merchant_id,
@@ -1014,11 +1242,16 @@ def parse_natural_language_intent_with_llm(
             },
         ) from error
     except OpenAIError as error:
+        provider_error = describe_openai_error(
+            error,
+            default_reason_code="LLM_PROVIDER_ERROR",
+            default_message="The intent model request failed.",
+        )
         raise HTTPException(
-            status_code=502,
+            status_code=provider_error.http_status,
             detail={
-                "reason_code": "LLM_PROVIDER_ERROR",
-                "message": "The intent model request failed.",
+                "reason_code": provider_error.reason_code,
+                "message": provider_error.message,
             },
         ) from error
 

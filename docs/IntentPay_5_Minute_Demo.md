@@ -2,8 +2,8 @@
 
 This script is designed for one continuous screen recording. It demonstrates
 the implemented system honestly: payment examples use the internal ledger
-simulator, no real money moves, and Razorpay Test Mode is the next provider
-integration.
+simulator, no real money moves, and the credentialed provider option is limited
+to the implemented Razorpay Test Mode boundary.
 
 ## Before recording
 
@@ -15,13 +15,15 @@ Run these checks from the project root:
 .\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000/docs`. Keep a second terminal ready for:
+Open `http://127.0.0.1:8000/` for the visual screenshot flow and keep
+`http://127.0.0.1:8000/docs` available for deeper API evidence. Keep a second
+terminal ready for:
 
 ```powershell
 .\scripts\run_demo.ps1 -IncludeBenchmark
 ```
 
-Expected preparation result: 101 tests pass, the API starts, and Swagger shows
+Expected preparation result: 123 tests pass, the API starts, and Swagger shows
 the orchestration, safety, evaluation, demo, payment, webhook, and audit routes.
 
 ## 0:00–0:35 — The problem and one-line pitch
@@ -48,6 +50,14 @@ Show `POST /intents/{intent_id}/orchestrate` in Swagger and say:
 Point out `payment_executed: false` in the orchestration schema. Explain that an
 ALLOW is readiness, not an automatic charge.
 
+Also briefly open `GET /categories` and `POST /visual-intents/analyze`:
+
+> IntentPay is no longer tied to headphones. The demo registry covers five
+> categories and three agent-readable merchants. A screenshot can identify a
+> candidate, but the screenshot price is never spending permission. IntentPay
+> verifies the catalog match and asks for exact product and budget confirmation
+> before creating a mandate.
+
 ## 1:10–1:50 — Scenario 1: normal purchase
 
 Run:
@@ -63,8 +73,8 @@ Show `observed_outcome: CAPTURED`, `passed: true`,
 Say:
 
 > This uses the internal provider simulator. The same provider-neutral command
-> boundary is where Razorpay Test Mode will connect; I am not presenting a fake
-> provider response as Razorpay.
+> boundary also supports the implemented Razorpay Test Mode adapter; I am not
+> presenting a fake provider response as Razorpay.
 
 ## 1:50–2:35 — Scenario 2: meaningful trade-off
 
@@ -142,10 +152,9 @@ Say:
 Say:
 
 > IntentPay is not another shopping chatbot. It is a policy, authorization,
-> value, and trust control plane for AI-native commerce. The next step is a
-> Razorpay Test Mode adapter with Orders API creation, server-side signature
-> verification, signed webhook validation, and reconciliation—while preserving
-> every deterministic gate shown here.
+> value, and trust control plane for AI-native commerce. It supports typed
+> multi-category catalogs, verified visual intents, and a Razorpay Test Mode
+> boundary while preserving every deterministic gate shown here.
 
 End on the project statement in `docs/IntentPay_Project_Context.md`.
 
