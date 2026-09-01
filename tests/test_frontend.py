@@ -10,9 +10,23 @@ def test_demo_interface_is_served(client):
 def test_demo_interface_assets_are_served(client):
     stylesheet = client.get("/assets/styles.css")
     application = client.get("/assets/app.js")
+    home_stylesheet = client.get("/assets/home.css")
+    home_application = client.get("/assets/home.js")
 
     assert stylesheet.status_code == 200
     assert "--green" in stylesheet.text
     assert application.status_code == 200
     assert 'api("/visual-intents/analyze"' in application.text
     assert 'api("/visual-intents/confirm"' in application.text
+    assert home_stylesheet.status_code == 200
+    assert home_application.status_code == 200
+    assert 'fetch("/assistant/chat"' in home_application.text
+
+
+def test_home_flow_does_not_require_an_image(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "No image required" in response.text
+    assert 'id="homeImageInput" type="file"' in response.text
+    assert 'id="homeImageInput" type="file" required' not in response.text

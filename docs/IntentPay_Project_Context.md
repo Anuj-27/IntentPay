@@ -2144,3 +2144,20 @@ intent or payment. “Open in Verify” carries a product hint and budget into t
 existing confirmation surface, preserving the explicit confirmation, current
 price/stock reload, merchant policy, Buyer Agent, and Trust Gate boundary.
 The full test suite now contains 130 passing tests.
+
+---
+
+# 55. Text-First Purchase Workspace — Implemented
+
+The home page is now a simple text-first entry point rather than a compulsory
+screenshot form. A user can describe a product need, add an optional maximum
+budget and quantity, and receive catalog-grounded suggestions immediately.
+Adding a screenshot is an optional enhancement for visual context. Selecting a
+suggestion opens an exact-product review with an editable maximum total and an
+explicit confirmation checkbox before `/visual-intents/confirm` runs the
+existing deterministic gates. The legacy visual endpoint remains available for
+clients that specifically want screenshot analysis.
+
+The redesigned page is responsive, keyboard-accessible, and keeps discovery,
+verification, and authorization visually distinct. The full test suite now
+contains 131 passing tests.

@@ -27,8 +27,10 @@ python -m alembic upgrade head
 python -m uvicorn backend.app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000/` for the visual demo interface or
-`http://127.0.0.1:8000/docs` for interactive API documentation.
+Open `http://127.0.0.1:8000/` for the text-first purchase workspace or
+`http://127.0.0.1:8000/chat` for the full assistant conversation. The screenshot
+is optional on the home page; it is an additional visual signal, not a required
+input. Open `http://127.0.0.1:8000/docs` for interactive API documentation.
 
 ## Test
 
