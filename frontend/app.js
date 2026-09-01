@@ -18,6 +18,10 @@ let selectedFile = null;
 let currentAnalysis = null;
 let razorpayConfigured = false;
 
+const queryParams = new URLSearchParams(window.location.search);
+if (queryParams.has("hint")) productHint.value = queryParams.get("hint");
+if (queryParams.has("budget")) maxBudget.value = queryParams.get("budget");
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")

@@ -2126,3 +2126,21 @@ analyzer. `GET /visual-intents/configuration` exposes both readiness flags and
 the active model so a demo can clearly show whether it used `LOCAL_VISION` or
 `LOCAL_OCR`. No screenshot is persisted or sent to an external provider in
 either local mode.
+
+---
+
+# 54. Product Assistant Chat Surface — Implemented
+
+`GET /chat` serves a dedicated product-discovery interface, separate from the
+verification and authorization interface at `/`. The composer supports normal
+conversation, quick prompts, and PNG/JPEG/WebP drag-and-drop image attachments.
+`POST /assistant/chat` combines the local visual analyzer with category,
+brand, feature, quantity, and budget extraction, then ranks only active,
+in-stock products from approved merchant contracts.
+
+Each suggestion includes its catalog evidence, merchant, total amount, score,
+and budget status. Chat is stateless and discovery-only; it never creates an
+intent or payment. “Open in Verify” carries a product hint and budget into the
+existing confirmation surface, preserving the explicit confirmation, current
+price/stock reload, merchant policy, Buyer Agent, and Trust Gate boundary.
+The full test suite now contains 130 passing tests.

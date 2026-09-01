@@ -96,6 +96,19 @@ hint is entered.
 Set `VISUAL_ANALYZER_MODE=OPENAI_VISION` only when paid OpenAI API access is
 available.
 
+## Product assistant chat
+
+Open `/chat` for the separate discovery surface. It accepts a conversation,
+quick prompts, and drag-and-drop product images. `POST /assistant/chat` returns
+catalog-grounded suggestions with merchant, price, score, reasons, and budget
+fit. Chat is intentionally discovery-only: its “Open in Verify” action sends
+the selected product to the existing screenshot verification page, where exact
+product confirmation and the Trust Gate still happen.
+
+The assistant uses local vision for attached images and deterministic catalog
+retrieval for text preferences. This keeps recommendations explainable and
+prevents a chat model from inventing products or authorizing a payment.
+
 ## Evaluation and demo
 
 IntentPay includes a versioned 500-case synthetic safety benchmark and five

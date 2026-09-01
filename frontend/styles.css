@@ -84,6 +84,23 @@ footer {
   font-weight: 700;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.chat-nav-link {
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.chat-nav-link:hover {
+  color: var(--green-dark);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;

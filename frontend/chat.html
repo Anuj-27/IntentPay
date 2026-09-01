@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="IntentPay product assistant for catalog-grounded recommendations.">
+  <title>IntentPay — Product Assistant</title>
+  <link rel="stylesheet" href="/assets/chat.css">
+</head>
+<body class="chat-body">
+  <header class="chat-header">
+    <a class="chat-brand" href="/" aria-label="IntentPay verification home">
+      <span class="chat-brand-mark">IP</span>
+      <span>IntentPay</span>
+    </a>
+    <nav class="chat-nav" aria-label="Product tools">
+      <a class="active" href="/chat">Assistant</a>
+      <a href="/">Verify purchase</a>
+    </nav>
+    <span class="chat-live"><i></i> Private workspace</span>
+  </header>
+
+  <main class="chat-main">
+    <section class="chat-intro">
+      <div>
+        <p class="chat-eyebrow">Product intelligence · discovery mode</p>
+        <h1>Find the right product<br><em>before money moves.</em></h1>
+        <p class="chat-subtitle">Describe what you need or drop a product image. I’ll compare only approved, in-stock catalog items and explain the trade-offs.</p>
+      </div>
+      <div class="intro-stamp">
+        <span>01</span>
+        <strong>Discover</strong>
+        <small>Chat can recommend.<br>Verification must authorize.</small>
+      </div>
+    </section>
+
+    <section class="chat-layout">
+      <section class="assistant-card" aria-label="IntentPay product assistant">
+        <div class="assistant-bar">
+          <div class="assistant-identity">
+            <span class="assistant-avatar">✦</span>
+            <div><strong>IntentPay assistant</strong><small>Catalog-grounded · safety-first</small></div>
+          </div>
+          <span class="assistant-mode">DISCOVERY ONLY</span>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+
+        <div class="quick-prompts" id="quickPrompts" aria-label="Suggested prompts">
+          <button type="button" data-prompt="Find a smartphone under ₹50000 with a good camera">Phone under ₹50k</button>
+          <button type="button" data-prompt="Compare laptops under ₹65000 with 16GB RAM">Compare laptops</button>
+          <button type="button" data-prompt="I need headphones with ANC under ₹5000">ANC headphones</button>
+        </div>
+
+        <form class="chat-composer" id="chatForm">
+          <div class="attachment-preview" id="attachmentPreview" hidden>
+            <img id="attachmentImage" alt="Attached product image preview">
+            <div><strong id="attachmentName"></strong><small>Image attached for visual search</small></div>
+            <button type="button" id="removeAttachment" aria-label="Remove attached image">×</button>
+          </div>
+          <div class="drop-target" id="dropTarget" tabindex="0">
+            <input id="chatImageInput" type="file" accept="image/png,image/jpeg,image/webp">
+            <span class="drop-icon">＋</span>
+            <span>Drop product image or <u>browse</u></span>
+            <small>PNG, JPEG, WebP · 5 MB max</small>
+          </div>
+          <textarea id="chatInput" rows="2" maxlength="2000" placeholder="Tell me what you want to buy…" aria-label="Message the product assistant"></textarea>
+          <div class="composer-footer">
+            <span class="composer-note"><span>⌁</span> Suggestions never authorize payment</span>
+            <button class="send-button" id="sendButton" type="submit" aria-label="Send message">Send <span>↗</span></button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="chat-sidebar">
+        <div class="sidebar-card purpose-card">
+          <p class="sidebar-kicker">Two surfaces, two jobs</p>
+          <h2>Keep decisions clear.</h2>
+          <div class="purpose-row active"><span>✦</span><div><strong>Assistant chat</strong><small>Explore, compare, ask questions</small></div></div>
+          <div class="purpose-row"><span>✓</span><div><strong>Verify purchase</strong><small>Confirm exact item and budget</small></div></div>
+          <a class="sidebar-link" href="/">Open verification →</a>
+        </div>
+        <div class="sidebar-card safety-card">
+          <div class="safety-heading"><span>Trust boundary</span><b>ON</b></div>
+          <p>Every suggestion is grounded in an approved merchant catalog. The price shown is evidence, never authorization.</p>
+          <div class="safety-list"><span><i>✓</i> Budget-aware ranking</span><span><i>✓</i> In-stock products only</span><span><i>✓</i> No image retention</span></div>
+        </div>
+        <div class="sidebar-card hint-card">
+          <span class="hint-number">Tip</span>
+          <p>For an isolated product photo, add the model name if you know it. The local vision model will still inspect the image.</p>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="chat-footer"><span>IntentPay buildathon proof</span><a href="/docs" target="_blank" rel="noreferrer">API documentation ↗</a></footer>
+  <script src="/assets/chat.js" defer></script>
+</body>
+</html>

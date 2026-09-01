@@ -62,6 +62,10 @@ from backend.app.schemas.visual_intent import (
     VisualIntentConfirmationResponse,
     VisualIntentRequest,
 )
+from backend.app.schemas.chat import (
+    ProductAssistantChatRequest,
+    ProductAssistantChatResponse,
+)
 
 
 from backend.app.services.product_filter import filter_products
@@ -117,6 +121,7 @@ from backend.app.services.visual_intent_service import (
     get_configured_visual_analyzer,
     get_visual_analyzer_configuration,
 )
+from backend.app.services.chat_service import build_product_assistant_chat
 from backend.app.services.openai_error_service import describe_openai_error
 from backend.app.schemas.decision import DecisionType
 from backend.app.schemas.payment import (
@@ -163,6 +168,11 @@ app.mount(
 @app.get("/", include_in_schema=False)
 def get_demo_interface():
     return FileResponse(FRONTEND_DIRECTORY / "index.html")
+
+
+@app.get("/chat", include_in_schema=False)
+def get_chat_interface():
+    return FileResponse(FRONTEND_DIRECTORY / "chat.html")
 
 
 @app.middleware("http")
@@ -475,6 +485,31 @@ def analyze_visual_intent(
             detail={
                 "reason_code": provider_error.reason_code,
                 "message": provider_error.message,
+            },
+        ) from error
+
+
+@app.post(
+    "/assistant/chat",
+    response_model=ProductAssistantChatResponse,
+)
+def product_assistant_chat(request: ProductAssistantChatRequest):
+    try:
+        return build_product_assistant_chat(request)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": "CHAT_REQUEST_INVALID",
+                "message": str(error),
+            },
+        ) from error
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "reason_code": "CHAT_ANALYZER_UNAVAILABLE",
+                "message": str(error),
             },
         ) from error
 
