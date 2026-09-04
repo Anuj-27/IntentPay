@@ -5,6 +5,7 @@ from sqlalchemy import (
     String,
     Integer,
     Float,
+    Date,
     DateTime,
     Boolean,
     Text,
@@ -220,12 +221,35 @@ class MerchantProfileDB(Base):
     checkout = Column(Boolean, default=True, nullable=False)
     refunds = Column(Boolean, default=True, nullable=False)
     max_transaction_amount = Column(Integer, nullable=True)
-    human_approval_threshold = Column(Integer, nullable=True)
+    autonomous_transaction_limit = Column(Integer, nullable=True)
+    daily_autonomous_amount_limit = Column(Integer, nullable=True)
+    daily_autonomous_transaction_limit = Column(Integer, nullable=True)
+    high_value_review_threshold = Column(Integer, nullable=True)
+    require_human_review_for_policy_exceptions = Column(Boolean, default=True, nullable=False)
+    require_human_review_for_high_risk = Column(Boolean, default=False, nullable=False)
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
+
+
+class MerchantAutonomousUsageDB(Base):
+    """Running total of what a merchant's policy has let the AI agent
+    execute autonomously today (UTC calendar day). Read by
+    merchant_policy_engine.evaluate_merchant_policy (via merchant_usage_
+    service.get_today_usage) to enforce daily_autonomous_amount_limit /
+    daily_autonomous_transaction_limit, and incremented exactly once per
+    real autonomous order -- see merchant_usage_service.
+    record_autonomous_transaction and its call site in main.py's
+    create_razorpay_test_order."""
+
+    __tablename__ = "merchant_autonomous_usage"
+
+    merchant_id = Column(String, primary_key=True)
+    usage_date = Column(Date, primary_key=True)
+    amount_used = Column(Integer, default=0, nullable=False)
+    transaction_count = Column(Integer, default=0, nullable=False)
 
 
 class ProductOverrideDB(Base):
@@ -287,6 +311,13 @@ class MerchantApprovalDB(Base):
     status = Column(String, default="PENDING", nullable=False, index=True)
     requested_reason_code = Column(String, nullable=False)
     requested_message = Column(Text, nullable=False)
+    # "HIGH" when the amount is more than double the merchant's own
+    # autonomous_transaction_limit at request time, else "NORMAL" -- a
+    # real, deterministic signal derived from the same numbers already in
+    # the decision (not an invented risk score), so a merchant triaging a
+    # large queue can see which exceptions are furthest outside their
+    # normal envelope.
+    priority = Column(String, default="NORMAL", nullable=False)
     reviewer_merchant_id = Column(String, nullable=True)
     decision_reason = Column(Text, nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)

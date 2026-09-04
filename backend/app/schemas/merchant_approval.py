@@ -8,6 +8,7 @@ from backend.app.schemas.buyer_agent import BuyerAgentEvaluationResult
 
 ApprovalStatus = Literal["PENDING", "APPROVED", "REJECTED", "EXPIRED"]
 ApprovalDecision = Literal["APPROVE", "REJECT"]
+ApprovalPriority = Literal["NORMAL", "HIGH"]
 
 
 class MerchantApproval(BaseModel):
@@ -21,6 +22,7 @@ class MerchantApproval(BaseModel):
     status: ApprovalStatus
     requested_reason_code: str
     requested_message: str
+    priority: ApprovalPriority = "NORMAL"
     reviewer_merchant_id: str | None = None
     decision_reason: str | None = None
     expires_at: datetime

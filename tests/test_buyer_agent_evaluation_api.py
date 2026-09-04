@@ -147,8 +147,14 @@ def test_confirmed_low_value_product_passes_trust_gate(client):
 def test_autonomous_high_value_product_requires_merchant_review(
     client,
 ):
+    # A single PROD-002 (₹4,800) now sits within MERCHANT-001's ₹6,000
+    # autonomous envelope, so this test buys 2 to reach ₹9,600 -- still
+    # under the ₹10,000 hard ceiling, but genuinely above the autonomous
+    # limit, which is what should still require merchant review.
     autonomous_intent = {
         **BASE_INTENT,
+        "max_budget": 9600,
+        "quantity": 2,
         "autonomous_selection_allowed": True,
     }
 
@@ -177,9 +183,9 @@ def test_autonomous_high_value_product_requires_merchant_review(
     )
 
     assert body["verification"]["verified"] is True
-    assert body["verification"]["expected_total"] == 4800
+    assert body["verification"]["expected_total"] == 9600
 
-    # Merchant threshold is ₹3,500.
+    # Merchant's autonomous-execution limit is ₹6,000.
     assert (
         body["merchant_policy"]["status"]
         == "REVIEW_REQUIRED"
@@ -187,7 +193,7 @@ def test_autonomous_high_value_product_requires_merchant_review(
 
     assert (
         body["merchant_policy"]["reason_code"]
-        == "MERCHANT_APPROVAL_THRESHOLD"
+        == "AUTONOMOUS_LIMIT_EXCEEDED"
     )
 
     # User authorization passed, but merchant approval is required.
@@ -202,6 +208,8 @@ def test_autonomous_high_value_product_requires_merchant_review(
 def test_escalated_evaluation_audit_is_not_ready_for_payment(client):
     autonomous_intent = {
         **BASE_INTENT,
+        "max_budget": 9600,
+        "quantity": 2,
         "autonomous_selection_allowed": True,
     }
     intent_id = create_intent(
@@ -228,7 +236,7 @@ def test_escalated_evaluation_audit_is_not_ready_for_payment(client):
     assert trust_log["decision"] == "ESCALATE"
     assert (
         trust_log["details"]["merchant_policy_reason"]
-        == "MERCHANT_APPROVAL_THRESHOLD"
+        == "AUTONOMOUS_LIMIT_EXCEEDED"
     )
     assert trust_log["details"]["ready_for_payment"] is False
 

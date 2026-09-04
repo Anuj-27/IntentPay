@@ -14,6 +14,7 @@ def make_intent(
     autonomous: bool = False,
     priority: str = "BEST_VALUE",
     preferred_features: list[str] | None = None,
+    quantity: int = 1,
 ) -> IntentMandate:
     return IntentMandate(
         product_category=category,
@@ -28,6 +29,7 @@ def make_intent(
             if preferred_features is not None
             else ["ANC", "fast charging"]
         ),
+        quantity=quantity,
     )
 
 
@@ -65,12 +67,18 @@ def build_evaluation_cases() -> list[EvaluationCase]:
         ))
 
     for index in range(75):
+        # PROD-002 alone (₹4,800) sits within MERCHANT-001's autonomous
+        # envelope (₹6,000) -- a quantity of 2 (₹9,600) is what now
+        # crosses it while staying under the ₹10,000 hard ceiling, so
+        # this still genuinely exercises the ESCALATE path rather than
+        # a routine single-item purchase.
         cases.append(EvaluationCase(
             case_id=f"escalate-merchant-threshold-{index + 1:03d}",
             category="MERCHANT_APPROVAL_REQUIRED",
             intent=make_intent(
-                max_budget=4800 + index,
+                max_budget=9600 + index,
                 autonomous=True,
+                quantity=2,
             ),
             expected_decision=DecisionType.ESCALATE,
             expected_reason_code="MERCHANT_HUMAN_APPROVAL_REQUIRED",

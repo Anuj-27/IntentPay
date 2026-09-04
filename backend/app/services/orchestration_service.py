@@ -8,6 +8,7 @@ from backend.app.services.decision_engine import make_decision
 from backend.app.services.intent_verifier import verify_purchase
 from backend.app.services.merchant_policy_engine import evaluate_merchant_policy
 from backend.app.services.merchant_service import check_merchant_access
+from backend.app.services.merchant_usage_service import get_today_usage
 from backend.app.services.safety_service import (
     evaluate_recommendation_integrity,
 )
@@ -19,6 +20,7 @@ def evaluate_intent_pipeline(
     merchant_contract: MerchantContract,
     confirmed_product_id: str | None = None,
     merchant_approval: dict | None = None,
+    db=None,
 ) -> BuyerAgentEvaluationResult:
     buyer_result = run_buyer_agent(
         intent=intent,
@@ -74,10 +76,16 @@ def evaluate_intent_pipeline(
         selected_product_id=confirmed_product_id,
     )
     intent_decision = make_decision(verification_result)
+    autonomous_usage_today = (
+        get_today_usage(db, merchant_contract.merchant.merchant_id)
+        if db is not None
+        else (0, 0)
+    )
     policy_result = evaluate_merchant_policy(
         verification_result,
         merchant_contract.merchant.policy,
         merchant_access_result=merchant_access_result,
+        autonomous_usage_today=autonomous_usage_today,
     )
     final_decision = evaluate_trust_gate(
         intent_decision,

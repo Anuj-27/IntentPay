@@ -67,12 +67,12 @@ def test_merchant_catalog_rejects_duplicate_product_ids():
 def test_merchant_policy_rejects_contradictory_thresholds():
     with pytest.raises(
         ValidationError,
-        match="approval threshold cannot exceed",
+        match="autonomous transaction limit cannot exceed",
     ):
         MerchantPolicy(
             merchant_id="MERCHANT-001",
             max_transaction_amount=5000,
-            human_approval_threshold=6000,
+            autonomous_transaction_limit=6000,
         )
 
 
@@ -133,7 +133,7 @@ def test_hard_merchant_transaction_limit_blocks_purchase():
     policy = MerchantPolicy(
         merchant_id="MERCHANT-001",
         max_transaction_amount=3000,
-        human_approval_threshold=2000,
+        autonomous_transaction_limit=2000,
     )
     verification_result = {
         "verified": True,

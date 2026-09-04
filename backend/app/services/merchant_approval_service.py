@@ -40,6 +40,7 @@ def merchant_approval_to_dict(record: MerchantApprovalDB) -> dict:
         "status": _effective_status(record),
         "requested_reason_code": record.requested_reason_code,
         "requested_message": record.requested_message,
+        "priority": record.priority,
         "reviewer_merchant_id": record.reviewer_merchant_id,
         "decision_reason": record.decision_reason,
         "expires_at": record.expires_at,
@@ -112,6 +113,7 @@ def create_merchant_approval_request(
     amount: int,
     reason_code: str,
     message: str,
+    priority: str = "NORMAL",
 ) -> tuple[MerchantApprovalDB, bool]:
     """Create an escalation request, or return the active duplicate.
 
@@ -141,6 +143,7 @@ def create_merchant_approval_request(
         status="PENDING",
         requested_reason_code=reason_code,
         requested_message=message,
+        priority=priority,
         expires_at=now + APPROVAL_TTL,
     )
     db.add(record)

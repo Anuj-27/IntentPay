@@ -55,7 +55,7 @@ def test_home_motion_styles_include_accessible_reduced_motion_fallback(client):
     assert stylesheet.status_code == 200
     assert "@keyframes gridDrift" in stylesheet.text
     assert "prefers-reduced-motion" in stylesheet.text
-    assert ".demo-video-frame video { display: none; }" in stylesheet.text
+    assert ".ai-tour-card { animation: none !important; }" in stylesheet.text
 
 
 def test_new_pages_are_served(client):

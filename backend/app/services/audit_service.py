@@ -67,6 +67,8 @@ def create_buyer_agent_audit_logs(
     verification_result: dict | None = None,
     policy_result: dict | None = None,
     final_decision: dict | None = None,
+    user_authorized_amount: int | None = None,
+    autonomous_transaction_limit: int | None = None,
 ):
     proposed_purchase = buyer_result.proposed_purchase
 
@@ -175,6 +177,8 @@ def create_buyer_agent_audit_logs(
                 if policy_result is not None
                 else None
             ),
+            "user_authorized_amount": user_authorized_amount,
+            "autonomous_transaction_limit": autonomous_transaction_limit,
             "ready_for_payment": (
                 final_decision_value
                 == DecisionType.ALLOW.value

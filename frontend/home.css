@@ -133,6 +133,54 @@ html.reveal-armed .hero-visual.is-visible .trust-dashboard-card {
 .demo-video-frame { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--line-strong); box-shadow: var(--shadow-md); background: #0b1310 url(/assets/media/hero-app-screenshot.png) center / cover no-repeat; }
 .demo-video-frame video { display: block; width: 100%; height: auto; }
 
+/* ---------- AI walkthrough ---------- */
+.ai-tour { padding: 34px clamp(20px, 4vw, 44px); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-translucent); box-shadow: var(--shadow-md); perspective: 1400px; }
+.ai-tour-stage { position: relative; min-height: 220px; display: flex; align-items: center; }
+.ai-tour-card { width: 100%; transform-style: preserve-3d; animation: aiTourEnter 0.55s var(--ease-spring) both; }
+.ai-tour-card.enter-left { animation-name: aiTourEnterLeft; }
+.ai-tour-card.no-motion { animation: none; }
+.ai-tour-tag { display: inline-block; margin-bottom: 12px; padding: 5px 10px; border-radius: 999px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.ai-tour-card h3 { max-width: 640px; font-size: clamp(1.3rem, 2.6vw, 1.8rem); letter-spacing: -0.02em; }
+.ai-tour-card p { max-width: 620px; margin-top: 12px; color: var(--muted); font-size: 0.92rem; line-height: 1.65; }
+.ai-tour-card .demo-video-frame { margin-top: 18px; }
+.ai-tour-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+.ai-tour-shot { margin: 0; border: 1px solid var(--line-strong); border-radius: 14px; overflow: hidden; background: #0b1310; box-shadow: var(--shadow-sm); transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease); }
+.ai-tour-shot:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.ai-tour-shot img { display: block; width: 100%; height: 190px; object-fit: cover; object-position: top; }
+.ai-tour-shot figcaption { padding: 10px 12px 13px; color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
+.ai-tour-cta { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; padding: 12px 18px; border-radius: 9px; background: var(--ink); color: #fff; font-size: 0.78rem; font-weight: 700; text-decoration: none; transition: 0.2s; }
+.ai-tour-cta:hover { background: var(--brand); transform: translateY(-1px); }
+.ai-tour-cta span { transition: transform 0.2s var(--ease); }
+.ai-tour-cta:hover span { transform: translateX(3px); }
+.ai-tour-card.accent-intro .ai-tour-tag { color: var(--ink); background: var(--line-soft); }
+.ai-tour-card.accent-buy .ai-tour-tag { color: var(--brand-dark); background: var(--mint); }
+.ai-tour-card.accent-grow .ai-tour-tag { color: #a65c22; background: var(--accent-soft); }
+.ai-tour-card.accent-guard .ai-tour-tag { color: var(--blue); background: var(--blue-soft); }
+.ai-tour-card.accent-prove .ai-tour-tag { color: var(--violet); background: var(--violet-soft); }
+.ai-tour-card.accent-live .ai-tour-tag { color: #fff; background: var(--ink); }
+@keyframes aiTourEnter { from { opacity: 0; transform: translateX(28px) rotateY(-8deg) translateZ(-30px); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes aiTourEnterLeft { from { opacity: 0; transform: translateX(-28px) rotateY(8deg) translateZ(-30px); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+
+.ai-tour-controls { display: flex; align-items: center; gap: 10px; margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.ai-tour-btn { flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); color: var(--ink-soft); font-size: 0.78rem; font-weight: 700; transition: 0.2s; }
+.ai-tour-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand-dark); background: var(--mint-soft); }
+.ai-tour-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ai-tour-icon { width: 36px; padding: 9px; text-align: center; }
+.ai-tour-skip { color: var(--muted); }
+.ai-tour-spacer { flex: 1; }
+.ai-tour-dots { display: flex; gap: 7px; }
+.ai-tour-dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; background: var(--line-strong); transition: 0.2s; }
+.ai-tour-dot:hover { background: #a9ceb0; }
+.ai-tour-dot.is-active { width: 22px; border-radius: 999px; background: var(--brand); }
+
+@media (max-width: 640px) {
+  .ai-tour { padding: 22px 18px; }
+  .ai-tour-controls { justify-content: center; }
+  .ai-tour-spacer { display: none; flex-basis: 100%; }
+  .ai-tour-skip { flex-basis: 100%; text-align: center; }
+  .ai-tour-gallery { grid-template-columns: 1fr; }
+}
+
 /* ---------- Trust & safety (dark) ---------- */
 .trust-section { margin-top: var(--section-pad); padding: var(--section-pad) 0; background: radial-gradient(ellipse 120% 80% at 15% 0%, var(--dark-bg-2), var(--dark-bg) 55%); color: var(--dark-ink); }
 .decision-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 36px; }
@@ -243,6 +291,6 @@ html.reveal-armed .hero-visual.is-visible .trust-dashboard-card {
 @media (prefers-reduced-motion: reduce) {
   .ai-grid, .ai-glow { animation: none !important; }
   .device-frame { transition: none; }
-  .demo-video-frame video { display: none; }
   .trust-dashboard-card { animation: none !important; opacity: 1 !important; }
+  .ai-tour-card { animation: none !important; }
 }

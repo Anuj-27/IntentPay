@@ -13,8 +13,17 @@ from backend.app.schemas.merchant_policy import MerchantPolicy
 from backend.app.schemas.product import Product
 
 
-DEFAULT_MAX_TRANSACTION_AMOUNT = 50_000
-DEFAULT_HUMAN_APPROVAL_THRESHOLD = 20_000
+"""Defaults for a newly self-registered merchant's policy. `max_transaction_
+amount` is a separate, absolute hard-reject ceiling (fraud/liability cap) --
+it must always be set comfortably above `autonomous_transaction_limit`, or a
+legitimate high-value purchase that should ESCALATE for review gets hard
+BLOCKed before it ever reaches that decision. A prior default
+(max=50,000, autonomous=20,000) did exactly that to any purchase above
+₹50,000 -- e.g. a genuine ₹73,000 sale had nowhere to go but BLOCK."""
+DEFAULT_MAX_TRANSACTION_AMOUNT = 500_000
+DEFAULT_AUTONOMOUS_TRANSACTION_LIMIT = 50_000
+DEFAULT_DAILY_AUTONOMOUS_AMOUNT_LIMIT = 2_000_000
+DEFAULT_DAILY_AUTONOMOUS_TRANSACTION_LIMIT = 100
 
 
 def _contract_from_registered_profile(profile: MerchantProfileDB) -> MerchantContract:
@@ -34,7 +43,12 @@ def _contract_from_registered_profile(profile: MerchantProfileDB) -> MerchantCon
             policy=MerchantPolicy(
                 merchant_id=profile.merchant_id,
                 max_transaction_amount=profile.max_transaction_amount,
-                human_approval_threshold=profile.human_approval_threshold,
+                autonomous_transaction_limit=profile.autonomous_transaction_limit,
+                daily_autonomous_amount_limit=profile.daily_autonomous_amount_limit,
+                daily_autonomous_transaction_limit=profile.daily_autonomous_transaction_limit,
+                high_value_review_threshold=profile.high_value_review_threshold,
+                require_human_review_for_policy_exceptions=profile.require_human_review_for_policy_exceptions,
+                require_human_review_for_high_risk=profile.require_human_review_for_high_risk,
             ),
         ),
         catalog=MerchantCatalog(merchant_id=profile.merchant_id, products=[]),
@@ -77,7 +91,9 @@ def register_merchant_profile(
         merchant_id=merchant_id,
         display_name=display_name,
         max_transaction_amount=DEFAULT_MAX_TRANSACTION_AMOUNT,
-        human_approval_threshold=DEFAULT_HUMAN_APPROVAL_THRESHOLD,
+        autonomous_transaction_limit=DEFAULT_AUTONOMOUS_TRANSACTION_LIMIT,
+        daily_autonomous_amount_limit=DEFAULT_DAILY_AUTONOMOUS_AMOUNT_LIMIT,
+        daily_autonomous_transaction_limit=DEFAULT_DAILY_AUTONOMOUS_TRANSACTION_LIMIT,
     )
     db.add(profile)
     if commit:

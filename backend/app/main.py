@@ -85,6 +85,10 @@ from backend.app.services.tradeoff_engine import evaluate_tradeoff
 from backend.app.services.intent_verifier import verify_purchase
 from backend.app.services.decision_engine import make_decision
 from backend.app.services.merchant_policy_engine import evaluate_merchant_policy
+from backend.app.services.merchant_usage_service import (
+    get_today_usage,
+    record_autonomous_transaction,
+)
 from backend.app.services.merchant_service import (
     check_merchant_access,
     find_catalog_product,
@@ -190,7 +194,11 @@ from backend.app.services.audit_service import (
     create_audit_log,
     create_buyer_agent_audit_logs,
 )
-from backend.app.db.models import AuditLogDB
+from backend.app.db.models import AuditLogDB, MerchantProfileDB
+from backend.app.schemas.merchant_policy import (
+    MerchantPolicy,
+    MerchantPolicySettingsUpdate,
+)
 from backend.app.services.intent_service import (
     confirm_product_selection,
     create_intent_record,
@@ -418,10 +426,16 @@ def evaluate_purchase_request(
         selected_product_id=selected_product_id,
     )
     intent_decision = make_decision(verification_result)
+    autonomous_usage_today = (
+        get_today_usage(db, merchant_contract.merchant.merchant_id)
+        if db is not None
+        else (0, 0)
+    )
     policy_result = evaluate_merchant_policy(
         verification_result,
         merchant_contract.merchant.policy,
         merchant_access_result=merchant_access_result,
+        autonomous_usage_today=autonomous_usage_today,
     )
     if (
         merchant_approval is None
@@ -459,6 +473,8 @@ def persist_buyer_agent_audit_logs(
     verification_result: dict | None = None,
     policy_result: dict | None = None,
     final_decision: dict | None = None,
+    intent: IntentMandate | None = None,
+    merchant_contract: MerchantContract | None = None,
 ):
     try:
         create_buyer_agent_audit_logs(
@@ -470,6 +486,14 @@ def persist_buyer_agent_audit_logs(
             verification_result=verification_result,
             policy_result=policy_result,
             final_decision=final_decision,
+            user_authorized_amount=(
+                intent.max_budget if intent is not None else None
+            ),
+            autonomous_transaction_limit=(
+                merchant_contract.merchant.policy.autonomous_transaction_limit
+                if merchant_contract is not None
+                else None
+            ),
         )
         db.commit()
     except Exception:
@@ -500,6 +524,7 @@ def evaluate_persisted_intent(
         intent=intent,
         merchant_contract=merchant_contract,
         confirmed_product_id=confirmed_product_id,
+        db=db,
     )
 
     proposed_purchase = evaluation.buyer_agent.proposed_purchase
@@ -526,6 +551,7 @@ def evaluate_persisted_intent(
                 merchant_contract=merchant_contract,
                 confirmed_product_id=confirmed_product_id,
                 merchant_approval=merchant_approval_to_dict(approval),
+                db=db,
             )
 
     return evaluation
@@ -554,6 +580,7 @@ def request_merchant_approval(
         intent=intent,
         merchant_contract=merchant_contract,
         confirmed_product_id=confirmed_product_id,
+        db=db,
     )
 
     if evaluation.final_decision.decision != DecisionType.ESCALATE:
@@ -595,6 +622,12 @@ def request_merchant_approval(
             amount=expected_total,
             reason_code=evaluation.final_decision.reason_code,
             message=evaluation.final_decision.message,
+            priority=(
+                "HIGH"
+                if merchant_contract.merchant.policy.autonomous_transaction_limit is not None
+                and expected_total > merchant_contract.merchant.policy.autonomous_transaction_limit * 2
+                else "NORMAL"
+            ),
         )
         persist_buyer_agent_audit_logs(
             db=db,
@@ -611,6 +644,8 @@ def request_merchant_approval(
                 else None
             ),
             final_decision=evaluation.final_decision.model_dump(),
+            intent=intent,
+            merchant_contract=merchant_contract,
         )
     except Exception:
         db.rollback()
@@ -696,6 +731,7 @@ def decide_merchant_approval_request(
         intent=intent,
         merchant_contract=merchant_contract,
         confirmed_product_id=confirmed_product_id,
+        db=db,
     )
     current_purchase = current_evaluation.buyer_agent.proposed_purchase
     current_total = (
@@ -756,6 +792,7 @@ def decide_merchant_approval_request(
         merchant_contract=merchant_contract,
         confirmed_product_id=confirmed_product_id,
         merchant_approval=merchant_approval_to_dict(approval),
+        db=db,
     )
     persist_buyer_agent_audit_logs(
         db=db,
@@ -772,6 +809,8 @@ def decide_merchant_approval_request(
             else None
         ),
         final_decision=evaluation.final_decision.model_dump(),
+        intent=intent,
+        merchant_contract=merchant_contract,
     )
 
     razorpay_test_request = None
@@ -1063,6 +1102,7 @@ def confirm_visual_intent(
         intent=intent,
         merchant_contract=merchant_contract,
         confirmed_product_id=product.product_id,
+        db=db,
     )
     persist_buyer_agent_audit_logs(
         db=db,
@@ -1079,6 +1119,8 @@ def confirm_visual_intent(
             else None
         ),
         final_decision=evaluation.final_decision.model_dump(),
+        intent=intent,
+        merchant_contract=merchant_contract,
     )
 
     razorpay_test_request = None
@@ -1307,6 +1349,92 @@ def get_merchant_session(
         merchant_id=merchant_contract.merchant.merchant_id,
         display_name=merchant_contract.merchant.display_name,
     )
+
+
+@app.get(
+    "/merchant/policy",
+    response_model=MerchantPolicy,
+)
+def get_merchant_policy(
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    merchant_contract = get_merchant_or_404(merchant_id, db=db)
+    return merchant_contract.merchant.policy
+
+
+@app.patch(
+    "/merchant/policy",
+    response_model=MerchantPolicy,
+)
+def update_merchant_policy(
+    update: MerchantPolicySettingsUpdate,
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    """Only self-registered merchants (MerchantProfileDB) can edit their
+    own policy -- the three built-in demo merchants (MERCHANT-001/002/003)
+    are fixed baseline configuration for the reproducible demo/benchmark
+    scenarios, not live-editable accounts."""
+
+    profile = (
+        db.query(MerchantProfileDB)
+        .filter(MerchantProfileDB.merchant_id == merchant_id)
+        .first()
+    )
+    if profile is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "reason_code": "MERCHANT_POLICY_NOT_EDITABLE",
+                "message": (
+                    "This merchant's policy is fixed baseline demo "
+                    "configuration and cannot be edited."
+                ),
+            },
+        )
+
+    if (
+        profile.max_transaction_amount is not None
+        and update.autonomous_transaction_limit > profile.max_transaction_amount
+    ):
+        # The same rule MerchantPolicy's own validator enforces on read --
+        # checked here too so an invalid combination is rejected instead
+        # of being written to the row and only failing the next time
+        # anything tries to read this merchant's contract back out.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": "AUTONOMOUS_LIMIT_EXCEEDS_HARD_CEILING",
+                "message": (
+                    f"The autonomous transaction limit (₹{update.autonomous_transaction_limit}) "
+                    f"cannot exceed this merchant's hard transaction limit "
+                    f"(₹{profile.max_transaction_amount})."
+                ),
+            },
+        )
+
+    previous_limit = profile.autonomous_transaction_limit
+    profile.autonomous_transaction_limit = update.autonomous_transaction_limit
+    create_audit_log(
+        db=db,
+        event_type="MERCHANT_POLICY_UPDATED",
+        component="MERCHANT_POLICY",
+        message=(
+            f"Autonomous transaction limit changed from "
+            f"₹{previous_limit} to ₹{update.autonomous_transaction_limit}."
+        ),
+        entity_type="MERCHANT",
+        entity_id=merchant_id,
+        details={
+            "previous_autonomous_transaction_limit": previous_limit,
+            "new_autonomous_transaction_limit": update.autonomous_transaction_limit,
+        },
+    )
+    db.commit()
+
+    merchant_contract = get_merchant_or_404(merchant_id, db=db)
+    return merchant_contract.merchant.policy
 
 
 @app.get(
@@ -1820,6 +1948,16 @@ def create_razorpay_test_order(
         trusted_amount=verification_result["expected_total"],
         client=client,
     )
+    # Count this against the merchant's daily autonomous caps exactly
+    # once: `payment_created` is only True the first time this
+    # idempotency key creates a new local payment record, never on a
+    # retried/replayed request, so a retry can never inflate the count.
+    if execution.get("payment_created"):
+        record_autonomous_transaction(
+            db,
+            mandate_from_record(intent_record).merchant_id,
+            verification_result["expected_total"],
+        )
     return {
         "protocol_context": protocol_context,
         "final_decision": final_decision,
@@ -2104,6 +2242,8 @@ def execute_buyer_agent(
         db=db,
         intent_record=intent_record,
         buyer_result=buyer_result,
+        intent=intent,
+        merchant_contract=merchant_contract,
     )
 
     return buyer_result
@@ -2152,6 +2292,8 @@ def evaluate_buyer_agent_proposal(
             if evaluation.buyer_agent.proposed_purchase is not None
             else None
         ),
+        intent=intent,
+        merchant_contract=merchant_contract,
     )
     return evaluation
 
@@ -2191,6 +2333,8 @@ def orchestrate_intent(
             if evaluation.buyer_agent.proposed_purchase is not None
             else None
         ),
+        intent=intent,
+        merchant_contract=merchant_contract,
     )
     return {
         "protocol_context": build_commerce_context(intent_record),

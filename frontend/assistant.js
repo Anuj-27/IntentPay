@@ -671,18 +671,20 @@ window.IntentPayAssistant = (function () {
     }
 
     function buildTrustChecks(evaluation) {
+      // Pass/fail/pending per row only -- the specific reason (real
+      // numbers, real violation text) is shown once, in the decision
+      // panel that follows this checklist, not repeated per-row.
       const violations = evaluation.intent_decision?.violations || evaluation.verification?.violations || [];
-      const violationCodes = new Set(violations.map((v) => v.code));
       const policyStatus = evaluation.merchant_policy?.status;
 
       return CHECK_ROWS.map((row) => {
         if (row.key === "policy") {
-          if (policyStatus === "REJECTED") return { ...row, state: "fail", messages: [evaluation.merchant_policy.message] };
-          if (policyStatus === "REVIEW_REQUIRED") return { ...row, state: "pending", messages: [evaluation.merchant_policy.message] };
-          return { ...row, state: "pass", messages: [] };
+          if (policyStatus === "REJECTED") return { ...row, state: "fail" };
+          if (policyStatus === "REVIEW_REQUIRED") return { ...row, state: "pending" };
+          return { ...row, state: "pass" };
         }
-        const matched = violations.filter((v) => row.codes.includes(v.code));
-        return { ...row, state: matched.length ? "fail" : "pass", messages: matched.map((v) => v.message) };
+        const failed = violations.some((v) => row.codes.includes(v.code));
+        return { ...row, state: failed ? "fail" : "pass" };
       });
     }
 
@@ -721,7 +723,10 @@ window.IntentPayAssistant = (function () {
         rowEl.className = `ip-check ${row.state}`;
         rowEl.style.animationDelay = `${index * 150}ms`;
         const icon = row.state === "pass" ? "✓" : row.state === "fail" ? "✗" : "…";
-        rowEl.innerHTML = `<span class="ip-check-icon">${icon}</span><span>${escapeHtml(row.label)}${row.messages.length ? `<small>${escapeHtml(row.messages[0])}</small>` : ""}</span>`;
+        // The specific reason (real numbers, real violation text) is not
+        // repeated here -- it appears once, in the decision panel that
+        // follows the checklist. This row is only a pass/fail/pending scan.
+        rowEl.innerHTML = `<span class="ip-check-icon">${icon}</span><span>${escapeHtml(row.label)}</span>`;
         checksEl.appendChild(rowEl);
       });
 
@@ -865,7 +870,7 @@ window.IntentPayAssistant = (function () {
       const policy = evaluation.merchant_policy;
       const reasonBits = [];
       if (policy?.threshold != null && policy?.amount != null) {
-        reasonBits.push(`This purchase (${rupees(policy.amount)}) exceeds the merchant's human-approval threshold of ${rupees(policy.threshold)}.`);
+        reasonBits.push(`This purchase (${rupees(policy.amount)}) exceeds the merchant's autonomous-execution limit of ${rupees(policy.threshold)}.`);
       } else if (policy?.message) {
         reasonBits.push(policy.message);
       }

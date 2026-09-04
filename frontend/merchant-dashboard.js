@@ -9,6 +9,7 @@ const addProductButton = document.querySelector("#addProductButton");
 const logoutLink = document.querySelector("#logoutLink");
 const approvalList = document.querySelector("#approvalList");
 const approvalRefreshButton = document.querySelector("#approvalRefreshButton");
+const policyCard = document.querySelector("#policyCard");
 
 const productModal = document.querySelector("#productModal");
 const modalTitle = document.querySelector("#modalTitle");
@@ -125,6 +126,7 @@ function renderApprovals(approvals) {
       <div class="approval-card-main">
         <div>
           <span class="approval-status">${escapeHtml(approval.status)}</span>
+          ${approval.priority === "HIGH" ? '<span class="approval-priority-high">HIGH</span>' : ""}
           <h3>${escapeHtml(approval.product_id)}</h3>
           <p>${rupees(approval.amount)} · Intent ${escapeHtml(approval.intent_id)}</p>
         </div>
@@ -147,6 +149,66 @@ async function refreshApprovals() {
   const data = await api("/merchant/approvals");
   renderApprovals(data.approvals || []);
   return data;
+}
+
+function renderPolicy(policy) {
+  const limit = policy.autonomous_transaction_limit;
+  policyCard.innerHTML = `
+    <div class="policy-current">
+      <div>
+        <span class="policy-label">Current limit</span>
+        <strong class="policy-value">${limit == null ? "Not set" : rupees(limit)}</strong>
+      </div>
+      <button type="button" class="policy-edit-button" id="policyEditButton">Edit</button>
+    </div>
+    <form class="policy-edit-form" id="policyEditForm" hidden>
+      <label for="policyLimitInput">New autonomous limit (INR)</label>
+      <input type="number" id="policyLimitInput" min="1" step="1" value="${limit ?? ""}" required>
+      <div class="policy-edit-actions">
+        <button type="submit" id="policySaveButton">Save</button>
+        <button type="button" id="policyCancelButton">Cancel</button>
+      </div>
+      <p class="policy-error" id="policyError" hidden></p>
+    </form>
+  `;
+
+  policyCard.querySelector("#policyEditButton").addEventListener("click", () => {
+    policyCard.querySelector(".policy-current").hidden = true;
+    policyCard.querySelector("#policyEditForm").hidden = false;
+    policyCard.querySelector("#policyLimitInput").focus();
+  });
+
+  policyCard.querySelector("#policyCancelButton").addEventListener("click", () => {
+    renderPolicy(policy);
+  });
+
+  policyCard.querySelector("#policyEditForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const saveButton = policyCard.querySelector("#policySaveButton");
+    const errorEl = policyCard.querySelector("#policyError");
+    const newLimit = Number(policyCard.querySelector("#policyLimitInput").value);
+    saveButton.disabled = true;
+    errorEl.hidden = true;
+    try {
+      const updated = await api("/merchant/policy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autonomous_transaction_limit: newLimit }),
+      });
+      renderPolicy(updated);
+    } catch (error) {
+      errorEl.textContent = error.message;
+      errorEl.hidden = false;
+      saveButton.disabled = false;
+    }
+  });
+}
+
+async function refreshPolicy() {
+  policyCard.innerHTML = '<p class="dashboard-loading">Loading policy…</p>';
+  const policy = await api("/merchant/policy");
+  renderPolicy(policy);
+  return policy;
 }
 
 async function reviewApproval(button, decision) {
@@ -446,6 +508,11 @@ async function initialize() {
     await refreshCatalog();
   } catch (error) {
     catalogTableBody.innerHTML = `<tr><td colspan="6" class="dashboard-empty">${escapeHtml(error.message)}</td></tr>`;
+  }
+  try {
+    await refreshPolicy();
+  } catch (error) {
+    policyCard.innerHTML = `<p class="dashboard-empty">${escapeHtml(error.message)}</p>`;
   }
   try {
     await refreshApprovals();

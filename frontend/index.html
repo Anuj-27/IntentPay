@@ -227,11 +227,22 @@
 
     <section class="see-it-work container" id="see-it-work">
       <div class="section-heading reveal">
-        <div><p class="eyebrow">See it work</p><h2>A real session, not a mockup.</h2></div>
-        <p class="section-lede">This is an actual recording of the flow above: a request, real catalog evidence, an explicit confirmation checkbox, and a live Trust Gate decision — the same internal-ledger simulator used in the reproducible demo scenarios.</p>
+        <div><p class="eyebrow">See it work</p><h2>Meet IntentPay AI.</h2></div>
+        <p class="section-lede">A short guided walkthrough of what the AI actually does — narrated, skippable, and finishing on an unscripted recording of the real flow. Nothing here is a mockup.</p>
       </div>
-      <div class="demo-video-frame reveal">
-        <video src="/assets/media/demo-flow.webm" poster="/assets/media/hero-app-screenshot.png" autoplay loop muted playsinline aria-label="Recorded IntentPay session: search, review, confirm, and Trust Gate decision"></video>
+
+      <div class="ai-tour reveal" id="aiTour" aria-roledescription="carousel" aria-label="IntentPay AI walkthrough">
+        <div class="ai-tour-stage" id="aiTourStage"></div>
+
+        <div class="ai-tour-controls">
+          <button type="button" class="ai-tour-btn" id="aiTourPrev" aria-label="Previous step">&larr;</button>
+          <div class="ai-tour-dots" id="aiTourDots" role="tablist" aria-label="Walkthrough steps"></div>
+          <button type="button" class="ai-tour-btn" id="aiTourNext" aria-label="Next step">&rarr;</button>
+          <span class="ai-tour-spacer"></span>
+          <button type="button" class="ai-tour-btn ai-tour-icon" id="aiTourPlayPause" aria-label="Pause auto-advance" aria-pressed="false">⏸</button>
+          <button type="button" class="ai-tour-btn ai-tour-icon" id="aiTourMute" aria-label="Mute narration" aria-pressed="false">🔊</button>
+          <button type="button" class="ai-tour-btn ai-tour-skip" id="aiTourSkip">Skip to how to use it</button>
+        </div>
       </div>
     </section>
 
@@ -321,6 +332,7 @@
   <script src="/assets/razorpay_checkout.js" defer></script>
   <script src="/assets/assistant.js" defer></script>
   <script src="/assets/intentpay-experience.js" defer></script>
+  <script src="/assets/ai-tour.js" defer></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const widget = document.querySelector("#ipWidget");

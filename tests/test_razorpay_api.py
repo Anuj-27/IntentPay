@@ -438,3 +438,55 @@ def test_razorpay_routes_are_typed_in_openapi(client):
     }
 
     assert required <= set(spec["paths"])
+
+
+def test_daily_autonomous_transaction_cap_escalates_the_next_real_order(
+    client, monkeypatch
+):
+    """A true end-to-end proof that record_autonomous_transaction's
+    counter (incremented once per real order in create_razorpay_test_
+    order) is actually read back by evaluate_merchant_policy on the next
+    request -- not just unit-tested in isolation."""
+    from backend.app.data import merchants
+    from backend.app.schemas.merchant_policy import MerchantPolicy
+
+    monkeypatch.setattr(
+        merchants.demo_merchant_contract.merchant,
+        "policy",
+        MerchantPolicy(
+            merchant_id="MERCHANT-001",
+            max_transaction_amount=10000,
+            autonomous_transaction_limit=3500,
+            daily_autonomous_transaction_limit=1,
+        ),
+    )
+
+    def handler(request):
+        body = json.loads(request.content)
+        return httpx.Response(200, json=order_payload(body))
+
+    install_adapter(handler)
+
+    first_intent_id = create_selected_intent(client)
+    first = client.post(
+        "/payments/razorpay-test/orders",
+        json=payment_request(first_intent_id, key="daily-cap-order-1"),
+    )
+    assert first.status_code == 200
+    assert first.json()["payment_created"] is True
+    assert first.json()["final_decision"]["decision"] == "ALLOW"
+
+    second_intent_id = create_selected_intent(client)
+    second = client.post(
+        "/payments/razorpay-test/orders",
+        json=payment_request(second_intent_id, key="daily-cap-order-2"),
+    )
+    assert second.status_code == 200
+    body = second.json()
+    assert body["payment_created"] is False
+    assert body["final_decision"]["decision"] == "ESCALATE"
+    assert body["final_decision"]["reason_code"] == "MERCHANT_HUMAN_APPROVAL_REQUIRED"
+    assert body["message"] == (
+        "No Razorpay order was created because the Trust Gate did "
+        "not return ALLOW."
+    )
