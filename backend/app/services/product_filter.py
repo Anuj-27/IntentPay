@@ -29,15 +29,17 @@ def filter_products(
                 )
             })
 
+        # This is the hard financial eligibility check. Budget Stretch reads
+        # these rejected records later, but never changes this decision.
         if proposed_total > intent.max_budget:
             reasons.append({
-            "code": "BUDGET_EXCEEDED",
-            "message": (
-                f"Purchase total ₹{proposed_total} "
-                f"({intent.quantity} × ₹{product.price}) exceeds "
-                f"budget ₹{intent.max_budget}."
-            )
-        })
+                "code": "BUDGET_EXCEEDED",
+                "message": (
+                    f"Purchase total ₹{proposed_total} "
+                    f"({intent.quantity} × ₹{product.price}) exceeds "
+                    f"budget ₹{intent.max_budget}."
+                )
+            })
 
         if not product.in_stock:
             reasons.append({

@@ -26,6 +26,12 @@ def find_budget_stretch_candidates(
         product = rejected_item["product"]
         proposed_total = product.price * intent.quantity
 
+        # Keep the boundary explicit here as well as in product_filter. This
+        # engine may inspect rejected products, but it can only classify a
+        # strictly above-budget product as an optional reauthorization path.
+        if proposed_total <= intent.max_budget:
+            continue
+
         rejection_codes = {
             reason["code"]
             for reason in rejected_item["reasons"]
@@ -62,6 +68,7 @@ def find_budget_stretch_candidates(
         stretch_candidates.append({
             "product": product,
             "decision": "REASK",
+            "status": "REQUIRES_REAUTHORIZATION",
             "over_budget_amount": over_budget_amount,
             "over_budget_percent": round(over_budget_percent, 2),
             "proposed_total": proposed_total,

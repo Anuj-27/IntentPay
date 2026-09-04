@@ -37,4 +37,3 @@ if ($IncludeBenchmark) {
         "$BaseUrl/evaluations/run"
     $report | ConvertTo-Json -Depth 8
 }
-

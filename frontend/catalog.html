@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browse IntentPay's approved catalog categories and merchants.">
+  <meta name="theme-color" content="#071510">
+  <title>IntentPay — Browse the Catalog</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1d17'/%3E%3Ctext x='32' y='42' font-family='Arial,Helvetica,sans-serif' font-size='24' font-weight='700' fill='%233fdb95' text-anchor='middle'%3EIP%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/tokens.css">
+  <link rel="stylesheet" href="/assets/home.css">
+  <link rel="stylesheet" href="/assets/catalog.css">
+</head>
+<body class="home-body">
+  <header class="site-nav" data-site-nav>
+    <div class="container nav-row">
+      <a class="brand" href="/" aria-label="IntentPay home">
+        <span class="brand-mark">IP</span>
+        <span>IntentPay</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/#pillars">Product</a>
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#trust">Trust &amp; safety</a>
+        <a href="/catalog" class="active">Catalog</a>
+        <a href="/chat">Assistant</a>
+      </nav>
+      <div class="nav-actions">
+        <span class="nav-status"><i></i> Test Mode</span>
+        <a class="nav-merchant-link" href="/merchant">Merchant login</a>
+        <a class="btn btn-primary" href="/#start">Start shopping <span>↗</span></a>
+      </div>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="navPanel" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-panel" id="navPanel" data-nav-panel>
+      <a href="/#pillars">Product</a>
+      <a href="/#how-it-works">How it works</a>
+      <a href="/#trust">Trust &amp; safety</a>
+      <a href="/catalog">Catalog</a>
+      <a href="/chat">Assistant</a>
+      <a href="/merchant">Merchant login</a>
+      <a class="btn btn-primary" href="/#start">Start shopping <span>↗</span></a>
+    </div>
+  </header>
+
+  <main class="catalog-main">
+    <div class="catalog-hero">
+      <p class="eyebrow">Approved catalog</p>
+      <h1>Browse by category</h1>
+      <p>Every product here comes from an active, agent-readable merchant contract. Pick a category to see current price, merchant, and evidence — then take it to the assistant or the shopping tool to verify and authorize.</p>
+    </div>
+
+    <div class="category-grid" id="categoryGrid">
+      <div class="catalog-loading">Loading categories…</div>
+    </div>
+
+    <div class="catalog-results" id="catalogResults" hidden>
+      <div class="results-heading">
+        <h2 id="resultsTitle">Category</h2>
+        <span id="resultsCount"></span>
+      </div>
+      <div class="product-grid" id="productGrid"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-bottom">
+      <span>© 2026 IntentPay — buildathon proof, not a production payment system.</span>
+      <span>Test Mode only. No real money moves in this demo.</span>
+    </div>
+  </footer>
+
+  <script src="/assets/site.js" defer></script>
+  <script src="/assets/catalog.js" defer></script>
+</body>
+</html>

@@ -15,6 +15,11 @@ from backend.app.db.models import (
     PaymentDB,
     WebhookEventDB,
     AuditLogDB,
+    MerchantCredentialDB,
+    MerchantPasswordResetDB,
+    MerchantProfileDB,
+    ProductOverrideDB,
+    MerchantApprovalDB,
 )
 
 

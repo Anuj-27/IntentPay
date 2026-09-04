@@ -42,3 +42,17 @@ def client():
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
+
+
+@pytest.fixture()
+def db_session(client):
+    """A raw session bound to the same in-memory engine `client` uses,
+    for tests that need to seed rows no public endpoint can create."""
+
+    override = app.dependency_overrides[get_db]
+    generator = override()
+    session = next(generator)
+    try:
+        yield session
+    finally:
+        generator.close()

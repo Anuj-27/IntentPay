@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Merchant login for IntentPay catalog management.">
+  <meta name="theme-color" content="#f6f7f1">
+  <title>IntentPay — Merchant Login</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1d17'/%3E%3Ctext x='32' y='42' font-family='Arial,Helvetica,sans-serif' font-size='24' font-weight='700' fill='%233fdb95' text-anchor='middle'%3EIP%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/tokens.css">
+  <link rel="stylesheet" href="/assets/merchant.css">
+</head>
+<body class="merchant-body">
+  <header class="merchant-topbar">
+    <a class="brand" href="/"><span class="brand-mark">IP</span><span>IntentPay</span></a>
+    <div class="merchant-topbar-actions">
+      <a href="/">Shopper site</a>
+      <a href="/catalog">Browse catalog</a>
+    </div>
+  </header>
+
+  <main class="merchant-login-shell">
+    <div class="merchant-login-card">
+      <h1 id="cardTitle">Merchant login</h1>
+      <p class="lede" id="cardLede">Manage your live catalog — add products, edit prices, and deactivate listings. Changes apply immediately to the buyer-facing site.</p>
+
+      <form id="loginForm">
+        <div class="merchant-field">
+          <label for="merchantId">Merchant ID</label>
+          <input id="merchantId" name="merchantId" type="text" autocomplete="username" placeholder="MERCHANT-001" required>
+        </div>
+        <div class="merchant-field">
+          <label for="merchantPassword">Password</label>
+          <input id="merchantPassword" name="merchantPassword" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="merchant-submit" id="loginSubmit" type="submit">Log in</button>
+        <div class="merchant-error" id="loginError" hidden></div>
+      </form>
+
+      <form id="forgotForm" hidden>
+        <div class="merchant-field">
+          <label for="forgotMerchantId">Merchant ID</label>
+          <input id="forgotMerchantId" type="text" autocomplete="username" placeholder="MERCHANT-001" required>
+        </div>
+        <button class="merchant-submit" id="forgotSubmit" type="submit">Send reset token</button>
+        <div class="merchant-error" id="forgotError" hidden></div>
+      </form>
+
+      <form id="resetForm" hidden>
+        <p class="lede" id="resetHint"></p>
+        <div class="merchant-field">
+          <label for="resetToken">Reset token</label>
+          <input id="resetToken" type="text" autocomplete="one-time-code" required>
+        </div>
+        <div class="merchant-field">
+          <label for="resetNewPassword">New password <span style="text-transform:none;font-weight:500">(8+ characters)</span></label>
+          <input id="resetNewPassword" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <button class="merchant-submit" id="resetSubmit" type="submit">Reset password</button>
+        <div class="merchant-error" id="resetError" hidden></div>
+        <div class="merchant-success" id="resetSuccess" hidden></div>
+      </form>
+
+      <form id="registerForm" hidden>
+        <div class="merchant-field">
+          <label for="registerDisplayName">Store name</label>
+          <input id="registerDisplayName" name="registerDisplayName" type="text" autocomplete="organization" placeholder="Aurora Audio Co." maxlength="200" required>
+        </div>
+        <div class="merchant-field">
+          <label for="registerMerchantId">Merchant ID <span style="text-transform:none;font-weight:500">(letters, numbers, - or _)</span></label>
+          <input id="registerMerchantId" name="registerMerchantId" type="text" autocomplete="username" placeholder="aurora-audio" minlength="3" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,63}" required>
+        </div>
+        <div class="merchant-field">
+          <label for="registerPassword">Password <span style="text-transform:none;font-weight:500">(8+ characters)</span></label>
+          <input id="registerPassword" name="registerPassword" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <button class="merchant-submit" id="registerSubmit" type="submit">Create account</button>
+        <div class="merchant-error" id="registerError" hidden></div>
+      </form>
+
+      <p class="mode-toggle"><button type="button" id="modeToggle">New merchant? Create an account →</button></p>
+      <p class="mode-toggle" id="forgotToggleWrap"><button type="button" id="forgotToggle">Forgot password? →</button></p>
+      <p class="mode-toggle" id="forgotBackWrap" hidden><button type="button" id="forgotBack">← Back to login</button></p>
+
+      <div class="merchant-demo-hint" id="demoHint">
+        <p>Demo access — for evaluation only</p>
+        <ul>
+          <li><code>MERCHANT-001</code> (DemoStore), <code>MERCHANT-002</code> (DemoTech), or <code>MERCHANT-003</code> (DemoVision)</li>
+          <li>Password: <code>IntentPayDemo!2026</code></li>
+        </ul>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/merchant-login.js" defer></script>
+</body>
+</html>

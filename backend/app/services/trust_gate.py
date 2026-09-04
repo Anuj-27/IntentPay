@@ -2,7 +2,8 @@ from backend.app.schemas.decision import DecisionType
 
 def evaluate_trust_gate(
         intent_decision: dict,
-        merchant_policy_result: dict
+        merchant_policy_result: dict,
+        merchant_approval: dict | None = None,
 ):
     intent_result = intent_decision["decision"]
 
@@ -37,6 +38,39 @@ def evaluate_trust_gate(
     if merchant_policy_result.get(
         "requires_human_approval"
     ):
+        approval_status = (
+            merchant_approval.get("status")
+            if merchant_approval is not None
+            else None
+        )
+
+        if approval_status == "APPROVED":
+            return {
+                "decision": DecisionType.ALLOW,
+                "reason_code": "MERCHANT_APPROVAL_GRANTED",
+                "message": (
+                    "The merchant approved the escalated purchase and "
+                    "the Trust Gate re-validation passed."
+                ),
+            }
+
+        if approval_status == "REJECTED":
+            return {
+                "decision": DecisionType.BLOCK,
+                "reason_code": "MERCHANT_APPROVAL_REJECTED",
+                "message": "The merchant rejected the escalated purchase.",
+            }
+
+        if approval_status == "EXPIRED":
+            return {
+                "decision": DecisionType.BLOCK,
+                "reason_code": "MERCHANT_APPROVAL_EXPIRED",
+                "message": (
+                    "The merchant approval expired before the purchase "
+                    "could be authorized."
+                ),
+            }
+
         return {
             "decision": DecisionType.ESCALATE,
             "reason_code": "MERCHANT_HUMAN_APPROVAL_REQUIRED",

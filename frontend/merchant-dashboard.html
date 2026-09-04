@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Merchant catalog dashboard for IntentPay.">
+  <meta name="theme-color" content="#f6f7f1">
+  <title>IntentPay — Merchant Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1d17'/%3E%3Ctext x='32' y='42' font-family='Arial,Helvetica,sans-serif' font-size='24' font-weight='700' fill='%233fdb95' text-anchor='middle'%3EIP%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/tokens.css">
+  <link rel="stylesheet" href="/assets/merchant.css">
+</head>
+<body class="merchant-body">
+  <header class="merchant-topbar">
+    <a class="brand" href="/"><span class="brand-mark">IP</span><span>IntentPay</span></a>
+    <div class="merchant-topbar-actions">
+      <a href="/catalog">Browse catalog</a>
+      <a href="/">Shopper site</a>
+      <a href="#" id="logoutLink">Log out</a>
+    </div>
+  </header>
+
+  <main class="merchant-dashboard-shell">
+    <div class="dashboard-header">
+      <div>
+        <h1 id="dashboardTitle">Your catalog</h1>
+        <p id="dashboardSubtitle">Loading merchant session…</p>
+      </div>
+      <div class="dashboard-summary" id="dashboardSummary" hidden>
+        <div class="summary-chip"><strong id="summaryTotal">0</strong> products</div>
+        <div class="summary-chip"><strong id="summaryActive">0</strong> live</div>
+        <div class="summary-chip"><strong id="summaryCustom">0</strong> added by you</div>
+      </div>
+    </div>
+
+    <div class="dashboard-toolbar">
+      <span></span>
+      <button class="add-product-button" id="addProductButton" type="button">+ Add product</button>
+    </div>
+
+    <div class="catalog-table-wrap">
+      <table class="catalog-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="catalogTableBody">
+          <tr><td colspan="6" class="dashboard-loading">Loading your catalog…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <section class="approval-dashboard-section" aria-labelledby="approvalHeading">
+      <div class="approval-dashboard-heading">
+        <div>
+          <p class="dashboard-kicker">Trust Gate review</p>
+          <h2 id="approvalHeading">Pending purchase approvals</h2>
+          <p>Escalated purchases stay outside payment until you approve or reject the exact product and amount.</p>
+        </div>
+        <button class="approval-refresh-button" id="approvalRefreshButton" type="button">Refresh approvals</button>
+      </div>
+      <div class="approval-list" id="approvalList">
+        <p class="dashboard-loading">Loading approvals…</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="productModal" hidden>
+    <div class="modal-card">
+      <h2 id="modalTitle">Add product</h2>
+      <form id="productForm">
+        <div class="form-grid">
+          <div class="form-field span-2">
+            <label for="fieldProductId">Product ID</label>
+            <input id="fieldProductId" required maxlength="128" placeholder="PROD-NEW-1">
+          </div>
+          <div class="form-field span-2">
+            <label for="fieldName">Name</label>
+            <input id="fieldName" required maxlength="200">
+          </div>
+          <div class="form-field">
+            <label for="fieldCategory">Category</label>
+            <select id="fieldCategory" required></select>
+          </div>
+          <div class="form-field">
+            <label for="fieldBrand">Brand</label>
+            <input id="fieldBrand" required maxlength="100">
+          </div>
+          <div class="form-field">
+            <label for="fieldPrice">Price (INR)</label>
+            <input id="fieldPrice" type="number" min="1" step="1" required>
+          </div>
+          <div class="form-field">
+            <label for="fieldRating">Rating (0–5)</label>
+            <input id="fieldRating" type="number" min="0" max="5" step="0.1" required>
+          </div>
+          <div class="form-field">
+            <label for="fieldColor">Color <span style="text-transform:none;font-weight:500">(optional)</span></label>
+            <input id="fieldColor" maxlength="100">
+          </div>
+          <div class="form-field">
+            <label for="fieldModel">Model <span style="text-transform:none;font-weight:500">(optional)</span></label>
+            <input id="fieldModel" maxlength="100">
+          </div>
+          <div class="form-field span-2">
+            <label for="fieldFeatures">Features <span style="text-transform:none;font-weight:500">(comma-separated)</span></label>
+            <input id="fieldFeatures" placeholder="ANC, fast charging, 40-hour battery">
+          </div>
+          <div class="form-field span-2">
+            <label>Product images <span style="text-transform:none;font-weight:500">(optional — first / starred image is primary)</span></label>
+            <div class="image-rows" id="imageRows"></div>
+            <div class="image-actions-row">
+              <button type="button" class="add-image-button" id="addImageButton">+ Add another image</button>
+              <button type="button" class="add-image-button" id="uploadImageButton">⤴ Upload from device</button>
+              <input type="file" id="imageUploadInput" accept="image/png,image/jpeg,image/webp" multiple hidden>
+            </div>
+          </div>
+        </div>
+        <div class="form-check">
+          <input id="fieldInStock" type="checkbox" checked>
+          <label for="fieldInStock">In stock</label>
+        </div>
+        <div class="modal-error" id="modalError" hidden></div>
+        <div class="modal-actions">
+          <button class="modal-cancel" type="button" id="modalCancel">Cancel</button>
+          <button class="modal-save" type="submit" id="modalSave">Save product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/merchant-dashboard.js" defer></script>
+</body>
+</html>

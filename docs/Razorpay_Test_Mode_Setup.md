@@ -50,9 +50,13 @@ existing order without sending another provider request.
 
 ## 4. Open Razorpay Checkout
 
-Pass the returned `checkout_options` to Razorpay Standard Checkout. After the
-browser returns `razorpay_order_id`, `razorpay_payment_id`, and
-`razorpay_signature`, send them to:
+The browser flow is now available from the home page. After an exact product
+confirmation receives a Trust Gate `ALLOW`, click **Open Razorpay Checkout**.
+The page loads Razorpay Standard Checkout, passes it the server-generated
+`checkout_options`, and sends the returned `razorpay_order_id`,
+`razorpay_payment_id`, and `razorpay_signature` to the server automatically.
+
+The same exchange can be performed manually by sending the Checkout response to:
 
 ```text
 POST /payments/{local_payment_id}/razorpay-test/verify-checkout
@@ -61,6 +65,10 @@ POST /payments/{local_payment_id}/razorpay-test/verify-checkout
 IntentPay verifies `HMAC-SHA256(order_id|payment_id, key_secret)` on the server.
 A valid Checkout signature does not mark the payment captured; fulfillment must
 wait for a signed captured webhook or verified reconciliation.
+
+The Checkout bridge lives in `frontend/razorpay_checkout.js`; it contains no
+secret and cannot create an order without the server-side Trust Gate and
+Razorpay Test Mode configuration.
 
 ## 5. Configure the signed webhook
 

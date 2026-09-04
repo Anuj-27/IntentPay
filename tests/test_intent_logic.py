@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from backend.app.data.products import products
 from backend.app.schemas.intent import IntentMandate
+from backend.app.schemas.product import Product
 from backend.app.services.intent_extractor import extract_intent_from_text
 from backend.app.services.llm_intent_extractor import extract_intent_with_llm
 from backend.app.services.preference_engine import rank_products
@@ -23,6 +24,14 @@ def test_parser_handles_indian_budget_format_and_quantity():
     assert intent.color == "black"
     assert intent.color_preference == "EXACT"
     assert intent.subscription_allowed is False
+
+
+def test_parser_handles_explicit_quantity_phrasing():
+    intent = extract_intent_from_text(
+        "make quantity 2, still want sony headphones under 7000"
+    )
+
+    assert intent.quantity == 2
 
 
 def test_parser_distinguishes_preference_from_requirement():
@@ -47,6 +56,38 @@ def test_filter_uses_quantity_aware_total():
         "BUDGET_EXCEEDED" in {reason["code"] for reason in item["reasons"]}
         for item in rejected
     )
+
+
+def test_filter_keeps_the_explicit_budget_as_a_hard_boundary():
+    intent = IntentMandate(
+        merchant_id="MERCHANT-002",
+        product_category="smartphones",
+        max_budget=69900,
+    )
+    products_for_budget_test = [
+        Product(
+            product_id="PHONE-IN",
+            name="Phone in budget",
+            category="smartphones",
+            price=69900,
+            brand="Example",
+            rating=4.0,
+        ),
+        Product(
+            product_id="PHONE-OUT",
+            name="Phone above budget",
+            category="smartphones",
+            price=73000,
+            brand="Example",
+            rating=4.0,
+        ),
+    ]
+
+    allowed, rejected = filter_products(intent, products_for_budget_test)
+
+    assert [product.product_id for product in allowed] == ["PHONE-IN"]
+    above_budget = next(item for item in rejected if item["product"].product_id == "PHONE-OUT")
+    assert {reason["code"] for reason in above_budget["reasons"]} == {"BUDGET_EXCEEDED"}
 
 
 def test_case_is_normalized_for_exact_constraints():

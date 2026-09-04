@@ -1,5 +1,6 @@
 import base64
 import binascii
+import io
 import json
 import os
 import re
@@ -12,6 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import httpx
 from openai import OpenAI
+from PIL import Image, UnidentifiedImageError
 
 from backend.app.data.categories import canonicalize_category
 from backend.app.schemas.visual_intent import (
@@ -34,6 +36,7 @@ DEFAULT_VISUAL_MODEL = "gpt-5.6-luna"
 DEFAULT_LOCAL_VISION_MODEL = "qwen2.5vl:3b"
 DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 DEFAULT_VISUAL_ANALYZER_MODE = "LOCAL_VISION"
+LOCAL_VISION_TIMEOUT_SECONDS = float(os.getenv("LOCAL_VISION_TIMEOUT_SECONDS", "240"))
 
 
 class LocalVisionUnavailable(RuntimeError):
@@ -160,6 +163,41 @@ def local_vision_available() -> bool:
     return bool(model) and model in _ollama_model_names()
 
 
+def local_vision_gpu_accelerated() -> bool | None:
+    """True/False when Ollama reports a loaded-model VRAM figure, None when
+    that can't be determined (Ollama unreachable or model not yet loaded).
+    A CPU-only local vision model is real but slow -- this lets the UI say
+    so honestly instead of implying every request should be quick."""
+    try:
+        response = httpx.get(f"{ollama_base_url()}/api/ps", timeout=1.5)
+        if response.status_code != 200:
+            return None
+        payload = response.json()
+    except (httpx.HTTPError, ValueError, OSError):
+        return None
+
+    model = local_vision_model_name()
+    for entry in payload.get("models", []) if isinstance(payload, dict) else []:
+        if isinstance(entry, dict) and entry.get("name") == model:
+            return bool(entry.get("size_vram", 0))
+    return None
+
+
+def _prepare_image_for_local_vision(image_bytes: bytes) -> bytes:
+    """Downscale before sending to the local model. This mainly protects
+    against large uploads (up to the 5 MB limit); on CPU-only hardware the
+    fixed per-request inference cost dominates far more than image size."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            image = image.convert("RGB")
+            image.thumbnail((896, 896))
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=82)
+            return buffer.getvalue()
+    except (UnidentifiedImageError, OSError):
+        return image_bytes
+
+
 def _parse_local_vision_json(content: str) -> dict:
     cleaned = content.strip()
     if cleaned.startswith("```"):
@@ -209,15 +247,17 @@ def analyze_product_screenshot_with_local_vision(
     if request.user_message:
         prompt += f" Optional user hint (not proof): {request.user_message}"
 
+    prepared_image_bytes = _prepare_image_for_local_vision(image_bytes)
     payload = {
         "model": model,
         "stream": False,
         "format": "json",
+        "options": {"temperature": 0},
         "messages": [
             {
                 "role": "user",
                 "content": prompt,
-                "images": [base64.b64encode(image_bytes).decode("ascii")],
+                "images": [base64.b64encode(prepared_image_bytes).decode("ascii")],
             }
         ],
     }
@@ -225,7 +265,7 @@ def analyze_product_screenshot_with_local_vision(
         response = httpx.post(
             f"{ollama_base_url()}/api/chat",
             json=payload,
-            timeout=120.0,
+            timeout=LOCAL_VISION_TIMEOUT_SECONDS,
         )
         if response.status_code != 200:
             raise LocalVisionProviderError(
@@ -293,8 +333,16 @@ def get_visual_analyzer_configuration() -> dict:
     local_vision_ready = local_vision_available()
     local_available = find_tesseract_executable() is not None
     openai_configured = bool(os.getenv("OPENAI_API_KEY"))
+    gpu_accelerated = local_vision_gpu_accelerated() if local_vision_ready else None
 
-    if mode == "LOCAL_VISION" and local_vision_ready:
+    if mode == "LOCAL_VISION" and local_vision_ready and gpu_accelerated is False:
+        message = (
+            f"Local vision model '{local_vision_model_name()}' is ready but running "
+            "on CPU only (no GPU detected by Ollama). Expect up to a few minutes per "
+            f"image; requests are allowed up to {int(LOCAL_VISION_TIMEOUT_SECONDS)}s "
+            "before falling back to OCR."
+        )
+    elif mode == "LOCAL_VISION" and local_vision_ready:
         message = (
             f"Local vision model '{local_vision_model_name()}' is ready. "
             "Screenshot bytes remain on this machine."
@@ -322,6 +370,7 @@ def get_visual_analyzer_configuration() -> dict:
         "mode": mode,
         "local_vision_available": local_vision_ready,
         "local_vision_model": local_vision_model_name(),
+        "local_vision_gpu_accelerated": gpu_accelerated,
         "local_ocr_available": local_available,
         "openai_configured": openai_configured,
         "sends_images_to_external_provider": mode == "OPENAI_VISION",

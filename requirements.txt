@@ -7,3 +7,4 @@ python-dotenv==1.2.3
 psycopg2-binary==2.9.12
 openai==3.6.0
 httpx==0.28.1
+Pillow==12.3.0

@@ -176,6 +176,10 @@ def test_budget_stretch_candidate_is_exposed():
     }
 
     assert "PROD-004" in stretch_product_ids
+    assert all(
+        candidate.status == "REQUIRES_REAUTHORIZATION"
+        for candidate in result.stretch_candidates
+    )
 
     # Stretch recommendations are not purchase authorization.
     assert result.proposed_purchase is None

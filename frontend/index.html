@@ -3,42 +3,358 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="IntentPay turns shopping requests into bounded, verified purchase intents.">
-  <title>IntentPay — Verified Visual Purchase Intent</title>
+  <meta name="description" content="IntentPay is a deterministic trust and authorization layer that lets AI agents shop from real catalogs while a Trust Gate keeps every purchase bound to your budget, exact product, and explicit confirmation.">
+  <meta name="theme-color" content="#071510">
+  <title>IntentPay — Shop with intent. Pay with certainty.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1d17'/%3E%3Ctext x='32' y='42' font-family='Arial,Helvetica,sans-serif' font-size='24' font-weight='700' fill='%233fdb95' text-anchor='middle'%3EIP%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/tokens.css">
   <link rel="stylesheet" href="/assets/home.css">
+  <link rel="stylesheet" href="/assets/intentpay-experience.css">
+  <link rel="stylesheet" href="/assets/assistant.css">
 </head>
 <body class="home-body">
-  <div class="ai-backdrop" aria-hidden="true"><div class="ai-grid"></div><div class="ai-glow glow-one"></div><div class="ai-glow glow-two"></div><div class="ai-node node-one"></div><div class="ai-node node-two"></div><div class="ai-node node-three"></div><div class="ai-connection connection-one"></div><div class="ai-connection connection-two"></div><div class="ai-connection connection-three"></div><div class="ai-spark spark-one">01</div><div class="ai-spark spark-two">AI</div><div class="ai-spark spark-three">✓</div></div>
-  <header class="home-nav">
-    <a class="home-brand" href="/" aria-label="IntentPay home"><span class="home-brand-mark">IP</span><span>IntentPay</span></a>
-    <nav aria-label="Primary navigation"><a class="active" href="/">Start</a><a href="/chat">Assistant</a><a href="/docs" target="_blank" rel="noreferrer">API docs</a></nav>
-    <span class="nav-private"><i></i> Private local analysis</span>
+
+  <div class="ai-backdrop" aria-hidden="true">
+    <div class="ai-grid"></div>
+    <div class="ai-glow glow-one"></div>
+    <div class="ai-glow glow-two"></div>
+  </div>
+
+  <header class="site-nav" data-site-nav>
+    <div class="container nav-row">
+      <a class="brand" href="/" aria-label="IntentPay home">
+        <span class="brand-mark">IP</span>
+        <span>IntentPay</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#pillars">Product</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#trust">Trust &amp; safety</a>
+        <a href="/catalog">Catalog</a>
+        <a href="/chat">Assistant</a>
+      </nav>
+      <div class="nav-actions">
+        <span class="nav-status"><i></i> Test Mode</span>
+        <a class="nav-merchant-link" href="/merchant">Merchant login</a>
+        <a class="btn btn-primary" href="#" data-open-assistant>Start shopping <span>↗</span></a>
+      </div>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="navPanel" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-panel" id="navPanel" data-nav-panel>
+      <a href="#pillars">Product</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#trust">Trust &amp; safety</a>
+      <a href="/catalog">Catalog</a>
+      <a href="/chat">Assistant</a>
+      <a href="/merchant">Merchant login</a>
+      <a class="btn btn-primary" href="#" data-open-assistant>Start shopping <span>↗</span></a>
+    </div>
   </header>
 
   <main class="home-main">
-    <section class="home-hero">
-      <div class="hero-copy"><p class="home-eyebrow">AI-native commerce safety</p><h1>Shop with intent.<br><em>Pay with certainty.</em></h1><p class="hero-lede">Describe what you need and compare real catalog evidence. IntentPay keeps every purchase behind a clear budget, exact-product confirmation, and deterministic Trust Gate.</p><div class="hero-actions"><a class="primary-link" href="#start">Start shopping <span>↗</span></a><a class="text-link" href="/chat">Open assistant chat</a></div></div>
-      <div class="hero-proof"><div class="orb-stage" aria-hidden="true"><div class="orb-halo"></div><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div><div class="orb-core"><span>IP</span><i></i></div><span class="orb-chip chip-catalog">CATALOG</span><span class="orb-chip chip-trust">TRUST</span><span class="orb-particle particle-one"></span><span class="orb-particle particle-two"></span><span class="orb-particle particle-three"></span></div><div class="proof-top"><span>THE SAFE PURCHASE LOOP</span><b>LIVE</b></div><div class="proof-line"><span>01</span><div><strong>Explore</strong><small>Chat, text, or optional image</small></div></div><div class="proof-line"><span>02</span><div><strong>Verify</strong><small>Approved catalog + exact product</small></div></div><div class="proof-line"><span>03</span><div><strong>Authorize</strong><small>Budget, policy, Trust Gate</small></div></div><div class="proof-foot"><span>Screenshot is discovery, not authority.</span><span>500/500 safety cases</span></div></div>
+
+    <section class="hero container">
+      <div class="hero-copy reveal">
+        <p class="eyebrow">AI-native commerce trust layer</p>
+        <h1>Shop with intent.<br><em>Pay with certainty.</em></h1>
+        <p class="hero-lede">Describe what you need and compare real catalog evidence. IntentPay keeps every purchase behind a clear budget, exact-product confirmation, and a deterministic Trust Gate — before anything reaches a payment provider.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#" data-open-assistant>Start shopping <span>↗</span></a>
+          <a class="btn-text" href="/chat">Open assistant chat →</a>
+        </div>
+      </div>
+
+      <div class="hero-visual reveal reveal-2">
+        <div class="trust-dashboard-card" aria-hidden="true">
+          <div class="tdc-glow"></div>
+          <div class="tdc-header">
+            <span class="tdc-mark">IP</span>
+            <span class="tdc-word">IntentPay</span>
+            <span class="tdc-live"><i></i>Test Mode</span>
+          </div>
+          <div class="tdc-methods">
+            <span class="tdc-chip">💳 Card</span>
+            <span class="tdc-chip">🏦 UPI</span>
+            <span class="tdc-chip">⚡ Razorpay</span>
+          </div>
+          <div class="tdc-widgets">
+            <div class="tdc-widget">
+              <span class="tdc-widget-label">Trust Gate</span>
+              <div class="tdc-bars">
+                <span class="bar-allow" style="--h:82%"></span>
+                <span class="bar-reask" style="--h:38%"></span>
+                <span class="bar-block" style="--h:14%"></span>
+                <span class="bar-escalate" style="--h:26%"></span>
+              </div>
+            </div>
+            <div class="tdc-widget">
+              <span class="tdc-widget-label">Audit trail</span>
+              <svg class="tdc-spark" viewBox="0 0 100 34" preserveAspectRatio="none"><polyline points="0,27 15,19 30,23 45,9 60,15 75,5 100,11"></polyline></svg>
+            </div>
+          </div>
+          <div class="tdc-stats">
+            <div><strong>500</strong><span>safety cases</span></div>
+            <div><strong>0</strong><span>unsafe ALLOWs</span></div>
+          </div>
+          <span class="tdc-badge">✓ ALLOW</span>
+        </div>
+        <div class="device-frame">
+          <div class="device-chrome">
+            <span></span><span></span><span></span>
+            <div class="device-url">intentpay.local/chat</div>
+          </div>
+          <img class="device-shot" src="/assets/media/hero-app-screenshot.png" width="1120" height="817" alt="The IntentPay assistant showing three approved headphone options with real prices and evidence, next to a live shopping brief and Trust Boundary panel.">
+        </div>
+        <div class="razorpay-badge">⚡ Built for the <b>Razorpay Buildathon</b> · Test Mode adapter</div>
+        <p class="device-caption">Real product screenshot. Screenshot is discovery, not authority — it never becomes spending permission.</p>
+      </div>
     </section>
 
-    <section class="start-section" id="start">
-      <div class="section-heading"><div><p class="home-eyebrow">Quick start</p><h2>What are you looking for?</h2></div><span class="optional-label">No image required</span></div>
-      <form class="command-card" id="homeForm">
-        <div class="command-icon">✦</div>
-        <div class="command-field"><label for="homeInput">Your shopping request <span>optional with an image</span></label><textarea id="homeInput" rows="2" maxlength="2000" placeholder="Try: I need a smartphone under ₹50000 with a good camera"></textarea></div>
-        <button class="command-submit" id="homeSubmit" type="submit">Find options <span>↗</span></button>
-        <div class="command-controls"><label>Maximum budget <input id="homeBudget" type="number" min="1" step="1" placeholder="Optional"></label><label>Quantity <input id="homeQuantity" type="number" min="1" max="100" value="1"></label><div class="optional-upload" id="homeDrop" tabindex="0"><input id="homeImageInput" type="file" accept="image/png,image/jpeg,image/webp"><span>＋</span><strong>Add image</strong><small>optional</small></div></div>
-        <div class="home-attachment" id="homeAttachment" hidden><img id="homePreview" alt="Attached product image preview"><span id="homeFileName"></span><button type="button" id="homeRemove" aria-label="Remove image">×</button></div>
-      </form>
-      <div class="example-row"><span>Try an example</span><button type="button" data-home-prompt="I need headphones with ANC under ₹5000">ANC headphones</button><button type="button" data-home-prompt="Compare laptops under ₹65000 with 16GB RAM">Laptops under ₹65k</button><button type="button" data-home-prompt="Find a smartwatch with GPS under ₹30000">Smartwatch with GPS</button></div>
+    <section class="proof-strip container reveal">
+      <div class="stat"><strong><span data-count-to="500">0</span>/500</strong><small>Synthetic safety cases passed</small></div>
+      <div class="stat"><strong><span data-count-to="132">0</span></strong><small>Automated regression tests</small></div>
+      <div class="stat"><strong><span data-count-to="0">0</span></strong><small>Unsafe ALLOWs in the baseline</small></div>
+      <div class="stat"><strong><span data-count-to="4">0</span></strong><small>Deterministic decisions</small></div>
+      <div class="stat"><strong><span data-count-to="3">0</span> × <span data-count-to="5">0</span></strong><small>Merchant contracts × categories</small></div>
     </section>
 
-    <section class="home-result" id="homeResult" aria-live="polite" aria-busy="false"><div class="result-placeholder"><span>02</span><div><strong>Your evidence appears here</strong><p>We’ll show approved products, price, merchant, and why each option fits.</p></div></div></section>
+    <section class="ipx-section reveal" id="pillars" aria-labelledby="ipxHeading">
+      <div class="ipx-glow ipx-glow-a" aria-hidden="true"></div>
+      <div class="ipx-glow ipx-glow-b" aria-hidden="true"></div>
+      <span class="ipx-particle" aria-hidden="true"></span>
+      <span class="ipx-particle" aria-hidden="true"></span>
+      <span class="ipx-particle" aria-hidden="true"></span>
+      <span class="ipx-particle" aria-hidden="true"></span>
+      <div class="container">
+        <div class="section-heading on-dark">
+          <div>
+            <p class="eyebrow on-dark">AI-native commerce orchestration</p>
+            <h2 id="ipxHeading">Turn intent into safe, intelligent transactions.</h2>
+          </div>
+          <p class="section-lede on-dark">IntentPay understands what the buyer wants, finds the right product, grows the purchase when valuable, applies merchant policy, and only allows payment when every authorization gate passes.</p>
+        </div>
 
-    <section class="home-features"><article><span class="feature-index">A</span><h3>Talk naturally</h3><p>Use plain language. Category, brand, features, budget, and quantity become a structured shopping brief.</p></article><article><span class="feature-index">B</span><h3>See the reasoning</h3><p>Every suggestion is tied to an active merchant catalog and shows the evidence behind its rank.</p></article><article><span class="feature-index">C</span><h3>Confirm deliberately</h3><p>Chat can recommend, but only your explicit confirmation can create a bounded purchase intent.</p></article></section>
+        <div class="ipx-stage">
+          <div class="ipx-core" id="ipxCore">
+            <span class="ipx-core-ring"></span>
+            <span class="ipx-core-ping" aria-hidden="true"></span>
+            <div class="ipx-core-body">
+              <span class="ipx-core-mark">IP</span>
+              <ul class="ipx-core-flow" aria-hidden="true">
+                <li data-stage="intent">Intent</li>
+                <li data-stage="ai">IntentPay AI</li>
+                <li data-stage="trust">Trust Gate</li>
+              </ul>
+              <span class="ipx-core-pill" id="ipxStatePill" aria-live="polite">Trust Gate</span>
+            </div>
+          </div>
+
+          <a class="ipx-card ipx-card-buy" href="/chat" data-explain="Understand intent. Find products. Prepare a purchase.">
+            <span class="ipx-card-tag">BUY</span>
+            <h3>AI Buyer</h3>
+            <ul>
+              <li>Understand natural-language shopping intent</li>
+              <li>Search the merchant catalog</li>
+              <li>Apply hard constraints</li>
+              <li>Recommend &amp; compare products</li>
+              <li>Prepare a proposed purchase</li>
+            </ul>
+            <span class="ipx-card-status">INTENT → PRODUCT</span>
+          </a>
+
+          <a class="ipx-card ipx-card-grow" href="/chat" data-explain="Find valuable upsells and cross-sells without blindly maximizing spend.">
+            <span class="ipx-card-tag">GROW</span>
+            <h3>Revenue Intelligence</h3>
+            <ul>
+              <li>Upsell &amp; cross-sell suggestions</li>
+              <li>Budget-aware recommendations</li>
+              <li>Preference &amp; value scoring</li>
+              <li>Trade-off detection</li>
+            </ul>
+            <span class="ipx-card-status">PRODUCT → VALUE</span>
+          </a>
+
+          <a class="ipx-card ipx-card-guard" href="#trust" data-explain="Verify user intent, merchant policy, and authorization.">
+            <span class="ipx-card-tag">GUARD</span>
+            <h3>Trust Gate</h3>
+            <ul>
+              <li>Intent &amp; user authorization verification</li>
+              <li>Merchant policy enforcement</li>
+              <li>ALLOW · REASK · BLOCK · ESCALATE</li>
+              <li>Budget limits &amp; human approval</li>
+            </ul>
+            <span class="ipx-card-status">DECISION → CONTROL</span>
+          </a>
+
+          <a class="ipx-card ipx-card-prove" href="/audit" target="_blank" rel="noreferrer" data-explain="Explain every action and preserve the audit trail.">
+            <span class="ipx-card-tag">PROVE</span>
+            <h3>Explainability</h3>
+            <ul>
+              <li>Reason-coded decisions</li>
+              <li>Correlated audit trail</li>
+              <li>Idempotent payment lifecycle</li>
+              <li>Verified webhook handling</li>
+            </ul>
+            <span class="ipx-card-status">ACTION → PROOF</span>
+          </a>
+        </div>
+
+        <p class="ipx-explain" id="ipxExplain" aria-live="polite">AI can act around money — but only inside explicit boundaries.</p>
+      </div>
+    </section>
+
+    <section class="pipeline container" id="how-it-works">
+      <div class="section-heading reveal">
+        <p class="eyebrow">How it works</p>
+        <h2>One pipeline, seven deterministic checkpoints.</h2>
+        <p class="section-lede">The LLM only extracts intent. Everything that follows is deterministic backend logic — the same code path runs whether the tool below is used, the assistant chat is used, or a screenshot is dropped in.</p>
+      </div>
+      <ol class="pipeline-list">
+        <li class="reveal reveal-1"><span>01</span><div><strong>Intent Mandate</strong><p>Natural language becomes a structured, machine-verifiable request.</p></div></li>
+        <li class="reveal reveal-2"><span>02</span><div><strong>Catalog match</strong><p>Only active, in-stock products from approved merchant contracts qualify.</p></div></li>
+        <li class="reveal reveal-3"><span>03</span><div><strong>Hard constraints</strong><p>Budget, brand, and category rules filter the catalog before anything is ranked.</p></div></li>
+        <li class="reveal reveal-4"><span>04</span><div><strong>Trade-off engine</strong><p>Meaningful price/value upgrades stay visible to you — never automatic.</p></div></li>
+        <li class="reveal reveal-5"><span>05</span><div><strong>Proposed Purchase</strong><p>The exact product, quantity, and total are locked in for verification.</p></div></li>
+        <li class="reveal"><span>06</span><div><strong>Trust Gate</strong><p>Intent verification and merchant policy resolve to one decision: ALLOW, REASK, BLOCK, or ESCALATE.</p></div></li>
+        <li class="reveal reveal-1"><span>07</span><div><strong>Payment boundary</strong><p>Only ALLOW reaches the internal simulator or the Razorpay Test Mode adapter.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="see-it-work container" id="see-it-work">
+      <div class="section-heading reveal">
+        <div><p class="eyebrow">See it work</p><h2>A real session, not a mockup.</h2></div>
+        <p class="section-lede">This is an actual recording of the flow above: a request, real catalog evidence, an explicit confirmation checkbox, and a live Trust Gate decision — the same internal-ledger simulator used in the reproducible demo scenarios.</p>
+      </div>
+      <div class="demo-video-frame reveal">
+        <video src="/assets/media/demo-flow.webm" poster="/assets/media/hero-app-screenshot.png" autoplay loop muted playsinline aria-label="Recorded IntentPay session: search, review, confirm, and Trust Gate decision"></video>
+      </div>
+    </section>
+
+    <section class="trust-section" id="trust">
+      <div class="container">
+        <div class="section-heading on-dark reveal">
+          <p class="eyebrow on-dark">Trust &amp; safety</p>
+          <h2>Every AI money action is explainable.</h2>
+          <p class="section-lede on-dark">An agent may propose a purchase. Only deterministic, user-authorized, policy-compliant code can release it to a payment provider.</p>
+        </div>
+
+        <div class="decision-cards">
+          <article class="decision-card allow reveal reveal-1">
+            <span class="decision-label">ALLOW</span>
+            <p>Budget, quantity, subscription, and merchant policy all check out.</p>
+          </article>
+          <article class="decision-card reask reveal reveal-2">
+            <span class="decision-label">REASK</span>
+            <p>A meaningful trade-off or an above-budget option needs your renewed input.</p>
+          </article>
+          <article class="decision-card block reveal reveal-3">
+            <span class="decision-label">BLOCK</span>
+            <p>An explicit restriction — like “no subscription” — was violated.</p>
+          </article>
+          <article class="decision-card escalate reveal reveal-4">
+            <span class="decision-label">ESCALATE</span>
+            <p>Your intent is valid, but merchant policy requires human approval.</p>
+          </article>
+        </div>
+
+        <div class="rules-panel reveal">
+          <p class="rules-kicker">Rules that never bend</p>
+          <ul class="rules-list">
+            <li>Budget permission is a maximum, not a spending target.</li>
+            <li>Hard constraints cannot be silently overridden by ranking.</li>
+            <li>Recommendation permission is not payment authorization.</li>
+            <li>A timeout is uncertainty, not proof that payment failed.</li>
+            <li>Duplicate logical requests cannot create duplicate financial effects.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="start-section container" id="start">
+      <div class="section-heading reveal"><div><p class="eyebrow">Try it</p><h2>What are you looking for?</h2></div></div>
+      <p class="section-lede reveal">Describe what you need to IntentPay AI and it will search approved catalogs, verify the exact product and price, and only reach payment once the Trust Gate allows it.</p>
+      <button type="button" class="btn btn-primary reveal" data-open-assistant>Open IntentPay AI <span>↗</span></button>
+    </section>
   </main>
 
-  <footer class="home-footer"><span>IntentPay buildathon proof</span><span>Discovery · Verification · Authorization</span></footer>
-  <script src="/assets/home.js" defer></script>
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="/"><span class="brand-mark">IP</span><span>IntentPay</span></a>
+        <p>A deterministic trust and authorization layer for AI-native commerce.<br>Razorpay Buildathon · Track 01 — AI Growth &amp; Agentic Commerce.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="#" data-open-assistant>Start shopping</a>
+        <a href="/chat">Assistant workspace</a>
+        <a href="/docs" target="_blank" rel="noreferrer">API reference</a>
+      </div>
+      <div class="footer-col">
+        <h4>Transparency</h4>
+        <a href="/safety/manifest" target="_blank" rel="noreferrer">Safety manifest</a>
+        <a href="/protocol/manifest" target="_blank" rel="noreferrer">Protocol manifest</a>
+        <a href="/categories" target="_blank" rel="noreferrer">Categories &amp; merchants</a>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© 2026 IntentPay — buildathon proof, not a production payment system.</span>
+      <span>Test Mode only. No real money moves in this demo.</span>
+    </div>
+  </footer>
+
+  <div class="ip-widget" id="ipWidget">
+    <div class="ip-widget-panel" id="ipWidgetPanel">
+      <div class="ip-widget-panel-body" id="ipWidgetBody"></div>
+    </div>
+    <button type="button" class="ip-launcher" id="ipLauncher" aria-expanded="false" aria-controls="ipWidgetPanel" aria-label="Open IntentPay AI assistant">
+      <span class="ip-launcher-mark" aria-hidden="true">✦</span>
+      <span class="ip-launcher-dot" aria-hidden="true"></span>
+    </button>
+  </div>
+
+  <script src="/assets/site.js" defer></script>
+  <script src="/assets/razorpay_checkout.js" defer></script>
+  <script src="/assets/assistant.js" defer></script>
+  <script src="/assets/intentpay-experience.js" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const widget = document.querySelector("#ipWidget");
+      const launcher = document.querySelector("#ipLauncher");
+      const body = document.querySelector("#ipWidgetBody");
+      let assistant = null;
+
+      function openWidget() {
+        widget.classList.add("is-open");
+        launcher.setAttribute("aria-expanded", "true");
+        if (!assistant) {
+          assistant = IntentPayAssistant.mount(body, { variant: "widget", onClose: closeWidget });
+        } else {
+          assistant.focus();
+        }
+      }
+
+      function closeWidget() {
+        widget.classList.remove("is-open");
+        launcher.setAttribute("aria-expanded", "false");
+      }
+
+      launcher.addEventListener("click", () => {
+        if (widget.classList.contains("is-open")) closeWidget();
+        else openWidget();
+      });
+
+      document.querySelectorAll("[data-open-assistant]").forEach((el) => {
+        el.addEventListener("click", (event) => {
+          event.preventDefault();
+          openWidget();
+        });
+      });
+    });
+  </script>
 </body>
 </html>

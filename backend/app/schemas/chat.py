@@ -28,14 +28,40 @@ class ChatProductSuggestion(BaseModel):
     within_budget: bool | None = None
 
 
+class ChatUpsellSuggestion(BaseModel):
+    """An above-budget alternative surfaced by IntentPay's existing
+    budget-stretch/upsell engine (see `product_search_service.
+    find_upsell_candidates`), never invented purely from fuzzy text
+    similarity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    merchant_id: str
+    merchant_name: str
+    product: Product
+    total_amount: int = Field(gt=0)
+    over_budget_amount: int
+    over_budget_percent: float
+    rating_gain: float
+    new_features: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list, max_length=8)
+    status: Literal["REQUIRES_REAUTHORIZATION"] = "REQUIRES_REAUTHORIZATION"
+
+
 class ChatIntentSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     category: str | None = None
     brand: str | None = None
+    color: str | None = None
     max_budget: int | None = None
     quantity: int = Field(default=1, ge=1, le=100)
     preferences: list[str] = Field(default_factory=list, max_length=12)
+    brand_preference: Literal["ANY", "PREFERRED", "EXACT"] = "ANY"
+    color_preference: Literal["ANY", "PREFERRED", "EXACT"] = "ANY"
+    priority: Literal["CHEAPEST", "BEST_VALUE", "HIGHEST_RATING"] = "BEST_VALUE"
+    subscription_allowed: bool = False
+    autonomous_selection_allowed: bool = False
 
 
 class ProductAssistantChatRequest(BaseModel):
@@ -62,7 +88,14 @@ class ProductAssistantChatResponse(BaseModel):
 
     reply: str
     suggestions: list[ChatProductSuggestion] = Field(default_factory=list, max_length=8)
+    upsell_candidates: list[ChatUpsellSuggestion] = Field(default_factory=list, max_length=5)
     visual_candidate: VisualProductCandidate | None = None
+    # How the products in `suggestions` were found. IMAGE_MATCH means an
+    # uploaded photo was successfully analyzed and its extracted identity
+    # was resolved against the catalog -- the catalog product (and its
+    # image_url) is always the one returned, never anything derived
+    # directly from the upload.
+    match_type: Literal["IMAGE_MATCH", "TEXT_MATCH", "NONE"] = "NONE"
     intent: ChatIntentSummary
     next_action: Literal[
         "PROVIDE_CATEGORY",

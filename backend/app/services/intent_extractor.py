@@ -40,6 +40,7 @@ def extract_quantity_from_text(message: str) -> int:
             r"\b(\d{1,3})\s+(?:(?:sony|jbl)\s+)?"
             r"(?:wireless\s+)?headphones?\b"
         ),
+        re.compile(r"\b(?:quantity|qty)\.?\s*(?:to|of|is|=|:)?\s*(\d{1,3})\b"),
     )
 
     for pattern in patterns:
@@ -80,7 +81,7 @@ def autonomous_selection_is_explicitly_allowed(message: str) -> bool:
     )
 
 
-def _preference_level(text: str, value: str) -> str:
+def preference_level(text: str, value: str) -> str:
     soft_phrases = (
         f"prefer {value}",
         f"preferably {value}",
@@ -88,6 +89,17 @@ def _preference_level(text: str, value: str) -> str:
         f"{value} if possible",
     )
     return "PREFERRED" if any(phrase in text for phrase in soft_phrases) else "EXACT"
+
+
+def detect_priority(message: str) -> str | None:
+    text = message.casefold()
+    if any(phrase in text for phrase in ("cheapest", "lowest price", "least expensive")):
+        return "CHEAPEST"
+    if any(phrase in text for phrase in ("best rated", "highest rating", "top rated")):
+        return "HIGHEST_RATING"
+    if any(phrase in text for phrase in ("best value", "best option", "best overall")):
+        return "BEST_VALUE"
+    return None
 
 
 def extract_intent_from_text(message: str) -> IntentMandate:
@@ -120,7 +132,7 @@ def extract_intent_from_text(message: str) -> IntentMandate:
         None,
     )
     brand_preference = (
-        _preference_level(text, brand.casefold())
+        preference_level(text, brand.casefold())
         if brand is not None
         else "ANY"
     )
@@ -128,7 +140,7 @@ def extract_intent_from_text(message: str) -> IntentMandate:
     known_colors = ("black", "blue", "white", "red", "green", "grey", "silver")
     color = next((known_color for known_color in known_colors if known_color in text), None)
     color_preference = (
-        _preference_level(text, color)
+        preference_level(text, color)
         if color is not None
         else "ANY"
     )

@@ -1,10 +1,13 @@
+import os
 from typing import Annotated
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAIError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.db.database import get_db
@@ -66,6 +69,12 @@ from backend.app.schemas.chat import (
     ProductAssistantChatRequest,
     ProductAssistantChatResponse,
 )
+from backend.app.schemas.merchant_approval import (
+    MerchantApproval,
+    MerchantApprovalDecisionResponse,
+    MerchantApprovalListResponse,
+    MerchantApprovalReviewRequest,
+)
 
 
 from backend.app.services.product_filter import filter_products
@@ -81,7 +90,45 @@ from backend.app.services.merchant_service import (
     find_catalog_product,
     find_merchant_contract,
     list_merchant_contracts,
+    list_merchant_dashboard_products,
+    merchant_id_is_taken,
+    register_merchant_profile,
+    set_merchant_product_active_state,
+    upsert_merchant_product,
 )
+from backend.app.services.merchant_auth_service import (
+    authenticate_merchant,
+    clear_session_cookie,
+    create_merchant_credential,
+    create_password_reset_token,
+    require_active_merchant,
+    reset_password_with_token,
+    set_session_cookie,
+)
+from backend.app.services.merchant_approval_service import (
+    create_merchant_approval_request,
+    decide_merchant_approval,
+    find_latest_matching_approval,
+    find_merchant_approval,
+    list_merchant_approvals,
+    merchant_approval_to_dict,
+)
+from backend.app.services.security_service import (
+    PASSWORD_RESET_TTL_SECONDS,
+    validate_security_configuration,
+)
+from backend.app.schemas.merchant_auth import (
+    MerchantCatalogEntry,
+    MerchantDashboardCatalog,
+    MerchantForgotPasswordRequest,
+    MerchantForgotPasswordResponse,
+    MerchantLoginRequest,
+    MerchantRegisterRequest,
+    MerchantResetPasswordRequest,
+    MerchantResetPasswordResponse,
+    MerchantSessionInfo,
+)
+from backend.app.schemas.product import Product
 from backend.app.data.categories import CATEGORIES, canonicalize_category
 from backend.app.services.trust_gate import evaluate_trust_gate
 from backend.app.services.protocol_service import (
@@ -157,6 +204,11 @@ app = FastAPI(
     version="0.1.0"
 )
 
+# Keep local Test Mode frictionless, but fail at startup rather than waiting
+# for the first merchant login when a staging/production deployment is missing
+# its signing secret.
+validate_security_configuration()
+
 FRONTEND_DIRECTORY = Path(__file__).resolve().parents[2] / "frontend"
 app.mount(
     "/assets",
@@ -175,8 +227,83 @@ def get_chat_interface():
     return FileResponse(FRONTEND_DIRECTORY / "chat.html")
 
 
+@app.get("/catalog", include_in_schema=False)
+def get_catalog_browser_interface():
+    return FileResponse(FRONTEND_DIRECTORY / "catalog.html")
+
+
+@app.get("/merchant", include_in_schema=False)
+def get_merchant_login_interface():
+    return FileResponse(FRONTEND_DIRECTORY / "merchant-login.html")
+
+
+@app.get("/merchant/dashboard", include_in_schema=False)
+def get_merchant_dashboard_interface():
+    return FileResponse(FRONTEND_DIRECTORY / "merchant-dashboard.html")
+
+
 @app.middleware("http")
 async def add_safe_response_headers(request: Request, call_next):
+    # Browser-based merchant mutations must originate from this application.
+    # CLI clients and the local demo may omit Origin; secure deployments must
+    # send either Origin or Referer so a cross-site form cannot reuse a
+    # merchant's session cookie.
+    merchant_mutation = (
+        request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and (
+            request.url.path.startswith("/merchant/catalog")
+            or request.url.path == "/merchant/session/logout"
+        )
+    )
+    if merchant_mutation:
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        configured_origin = os.getenv("APP_ORIGIN", "").strip()
+        expected_origin = configured_origin or (
+            f"{request.url.scheme}://{request.headers.get('host', '')}"
+        )
+
+        def origin_only(value: str) -> str:
+            parsed = urlsplit(value)
+            return (
+                f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+                if parsed.scheme and parsed.netloc
+                else ""
+            )
+
+        expected_origin = origin_only(expected_origin)
+        supplied_origin = origin_only(origin or referer or "")
+        if origin and origin_only(origin) != expected_origin:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": {
+                        "reason_code": "CROSS_ORIGIN_MUTATION",
+                        "message": "Merchant catalog changes must come from the IntentPay application.",
+                    }
+                },
+            )
+        if not origin and referer and supplied_origin != expected_origin:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": {
+                        "reason_code": "CROSS_ORIGIN_MUTATION",
+                        "message": "Merchant catalog changes must come from the IntentPay application.",
+                    }
+                },
+            )
+        if not origin and not referer and os.getenv("APP_ENV", "development").strip().casefold() in {"production", "prod", "staging"}:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": {
+                        "reason_code": "ORIGIN_REQUIRED",
+                        "message": "A same-origin request header is required for merchant catalog changes.",
+                    }
+                },
+            )
+
     response = await call_next(request)
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -224,8 +351,14 @@ def get_intent_or_404(db: Session, intent_id: str):
     return intent_record
 
 
-def get_merchant_or_404(merchant_id: str) -> MerchantContract:
-    merchant_contract = find_merchant_contract(merchant_id)
+def get_merchant_or_404(
+    merchant_id: str,
+    db: Session | None = None,
+    apply_overlay: bool = True,
+) -> MerchantContract:
+    merchant_contract = find_merchant_contract(
+        merchant_id, db=db, apply_overlay=apply_overlay
+    )
 
     if merchant_contract is None:
         raise HTTPException(
@@ -258,9 +391,14 @@ def require_merchant_access(
         )
 
 
-def evaluate_purchase_request(intent_record, purchase):
+def evaluate_purchase_request(
+    intent_record,
+    purchase,
+    db: Session | None = None,
+    merchant_approval: dict | None = None,
+):
     intent = mandate_from_record(intent_record)
-    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
     merchant_access_result = check_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -285,9 +423,31 @@ def evaluate_purchase_request(intent_record, purchase):
         merchant_contract.merchant.policy,
         merchant_access_result=merchant_access_result,
     )
+    if (
+        merchant_approval is None
+        and db is not None
+        and verification_result["verified"]
+        and verification_result.get("expected_total") is not None
+    ):
+        # Must see the approval regardless of its status -- a REJECTED or
+        # EXPIRED approval is exactly what tells the Trust Gate to return
+        # BLOCK instead of re-escalating a purchase the merchant already
+        # turned down. Filtering to APPROVED-only here (the earlier bug)
+        # made a rejected purchase look identical to one nobody had
+        # reviewed yet.
+        approval_record = find_latest_matching_approval(
+            db,
+            intent_id=intent_record.intent_id,
+            merchant_id=intent.merchant_id,
+            product_id=purchase.product_id,
+            amount=verification_result["expected_total"],
+        )
+        if approval_record is not None:
+            merchant_approval = merchant_approval_to_dict(approval_record)
     final_decision = evaluate_trust_gate(
         intent_decision,
         policy_result,
+        merchant_approval=merchant_approval,
     )
     return verification_result, intent_decision, policy_result, final_decision
 
@@ -315,6 +475,327 @@ def persist_buyer_agent_audit_logs(
     except Exception:
         db.rollback()
         raise
+
+
+def evaluate_persisted_intent(
+    intent_record,
+    merchant_contract: MerchantContract,
+    db: Session,
+):
+    """Evaluate an intent and apply only its exact current approval.
+
+    The first pass determines whether merchant human review is required. If
+    so, a matching approval may be supplied to a second full evaluation. A
+    matching rejected or expired approval is also applied, so a rejection
+    cannot silently turn back into an escalation on the next request.
+    """
+
+    intent = mandate_from_record(intent_record)
+    confirmed_product_id = (
+        intent_record.selected_product_id
+        if intent_record.selection_confirmed
+        else None
+    )
+    evaluation = evaluate_intent_pipeline(
+        intent=intent,
+        merchant_contract=merchant_contract,
+        confirmed_product_id=confirmed_product_id,
+    )
+
+    proposed_purchase = evaluation.buyer_agent.proposed_purchase
+    expected_total = (
+        evaluation.verification.expected_total
+        if evaluation.verification is not None
+        else None
+    )
+    if (
+        evaluation.final_decision.decision == DecisionType.ESCALATE
+        and proposed_purchase is not None
+        and expected_total is not None
+    ):
+        approval = find_latest_matching_approval(
+            db,
+            intent_id=intent_record.intent_id,
+            merchant_id=intent.merchant_id,
+            product_id=proposed_purchase.product_id,
+            amount=expected_total,
+        )
+        if approval is not None:
+            evaluation = evaluate_intent_pipeline(
+                intent=intent,
+                merchant_contract=merchant_contract,
+                confirmed_product_id=confirmed_product_id,
+                merchant_approval=merchant_approval_to_dict(approval),
+            )
+
+    return evaluation
+
+
+@app.post(
+    "/intents/{intent_id}/merchant-approval",
+    response_model=MerchantApproval,
+    status_code=201,
+)
+def request_merchant_approval(
+    intent_id: str,
+    db: Session = Depends(get_db),
+):
+    """Create a review request only when the current Trust Gate escalates."""
+
+    intent_record = get_intent_or_404(db, intent_id)
+    intent = mandate_from_record(intent_record)
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
+    confirmed_product_id = (
+        intent_record.selected_product_id
+        if intent_record.selection_confirmed
+        else None
+    )
+    evaluation = evaluate_intent_pipeline(
+        intent=intent,
+        merchant_contract=merchant_contract,
+        confirmed_product_id=confirmed_product_id,
+    )
+
+    if evaluation.final_decision.decision != DecisionType.ESCALATE:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason_code": "APPROVAL_NOT_REQUIRED",
+                "message": (
+                    "A merchant approval can be requested only when the "
+                    "current Trust Gate decision is ESCALATE."
+                ),
+                "final_decision": evaluation.final_decision.model_dump(
+                    mode="json"
+                ),
+            },
+        )
+
+    proposed_purchase = evaluation.buyer_agent.proposed_purchase
+    expected_total = (
+        evaluation.verification.expected_total
+        if evaluation.verification is not None
+        else None
+    )
+    if proposed_purchase is None or expected_total is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason_code": "APPROVAL_PROPOSAL_MISSING",
+                "message": "The escalated evaluation has no verified purchase proposal.",
+            },
+        )
+
+    try:
+        approval, _ = create_merchant_approval_request(
+            db,
+            intent_id=intent_record.intent_id,
+            merchant_id=intent.merchant_id,
+            product_id=proposed_purchase.product_id,
+            amount=expected_total,
+            reason_code=evaluation.final_decision.reason_code,
+            message=evaluation.final_decision.message,
+        )
+        persist_buyer_agent_audit_logs(
+            db=db,
+            intent_record=intent_record,
+            buyer_result=evaluation.buyer_agent,
+            verification_result=(
+                evaluation.verification.model_dump()
+                if evaluation.verification is not None
+                else None
+            ),
+            policy_result=(
+                evaluation.merchant_policy.model_dump()
+                if evaluation.merchant_policy is not None
+                else None
+            ),
+            final_decision=evaluation.final_decision.model_dump(),
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    return merchant_approval_to_dict(approval)
+
+
+@app.get(
+    "/merchant/approvals",
+    response_model=MerchantApprovalListResponse,
+)
+def get_merchant_approvals(
+    include_resolved: bool = Query(default=False),
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    return MerchantApprovalListResponse(
+        merchant_id=merchant_id,
+        approvals=[
+            MerchantApproval.model_validate(approval)
+            for approval in list_merchant_approvals(
+                db,
+                merchant_id,
+                pending_only=not include_resolved,
+            )
+        ],
+    )
+
+
+@app.get(
+    "/merchant/approvals/{approval_id}",
+    response_model=MerchantApproval,
+)
+def get_merchant_approval(
+    approval_id: str,
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    approval = find_merchant_approval(db, approval_id)
+    if approval is None or approval.merchant_id != merchant_id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "reason_code": "MERCHANT_APPROVAL_NOT_FOUND",
+                "message": "That approval request was not found.",
+            },
+        )
+    return merchant_approval_to_dict(approval)
+
+
+@app.post(
+    "/merchant/approvals/{approval_id}/decision",
+    response_model=MerchantApprovalDecisionResponse,
+)
+def decide_merchant_approval_request(
+    approval_id: str,
+    request: MerchantApprovalReviewRequest,
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    """Approve or reject, then re-run the complete Trust Gate pipeline."""
+
+    approval = find_merchant_approval(db, approval_id)
+    if approval is None or approval.merchant_id != merchant_id:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "reason_code": "MERCHANT_APPROVAL_NOT_FOUND",
+                "message": "That approval request was not found.",
+            },
+        )
+
+    intent_record = get_intent_or_404(db, approval.intent_id)
+    intent = mandate_from_record(intent_record)
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
+    confirmed_product_id = (
+        intent_record.selected_product_id
+        if intent_record.selection_confirmed
+        else None
+    )
+    current_evaluation = evaluate_intent_pipeline(
+        intent=intent,
+        merchant_contract=merchant_contract,
+        confirmed_product_id=confirmed_product_id,
+    )
+    current_purchase = current_evaluation.buyer_agent.proposed_purchase
+    current_total = (
+        current_evaluation.verification.expected_total
+        if current_evaluation.verification is not None
+        else None
+    )
+
+    if (
+        current_evaluation.final_decision.decision != DecisionType.ESCALATE
+        or current_purchase is None
+        or current_total != approval.amount
+        or current_purchase.product_id != approval.product_id
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason_code": "MERCHANT_APPROVAL_STALE",
+                "message": (
+                    "The purchase changed or no longer requires the same "
+                    "merchant approval. Run a fresh evaluation."
+                ),
+                "final_decision": current_evaluation.final_decision.model_dump(
+                    mode="json"
+                ),
+            },
+        )
+
+    try:
+        approval = decide_merchant_approval(
+            db,
+            approval_id=approval_id,
+            reviewer_merchant_id=merchant_id,
+            decision=request.decision,
+            reason=request.reason,
+        )
+    except PermissionError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason_code": "MERCHANT_APPROVAL_FORBIDDEN",
+                "message": str(error),
+            },
+        ) from error
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason_code": "MERCHANT_APPROVAL_NOT_PENDING",
+                "message": str(error),
+            },
+        ) from error
+
+    evaluation = evaluate_intent_pipeline(
+        intent=intent,
+        merchant_contract=merchant_contract,
+        confirmed_product_id=confirmed_product_id,
+        merchant_approval=merchant_approval_to_dict(approval),
+    )
+    persist_buyer_agent_audit_logs(
+        db=db,
+        intent_record=intent_record,
+        buyer_result=evaluation.buyer_agent,
+        verification_result=(
+            evaluation.verification.model_dump()
+            if evaluation.verification is not None
+            else None
+        ),
+        policy_result=(
+            evaluation.merchant_policy.model_dump()
+            if evaluation.merchant_policy is not None
+            else None
+        ),
+        final_decision=evaluation.final_decision.model_dump(),
+    )
+
+    razorpay_test_request = None
+    if (
+        evaluation.final_decision.decision == DecisionType.ALLOW
+        and evaluation.buyer_agent.proposed_purchase is not None
+    ):
+        razorpay_test_request = {
+            "intent_id": intent_record.intent_id,
+            "purchase": evaluation.buyer_agent.proposed_purchase.model_dump(
+                mode="json"
+            ),
+            "idempotency_key": f"approval-{approval.approval_id}",
+        }
+
+    return MerchantApprovalDecisionResponse(
+        approval=MerchantApproval.model_validate(
+            merchant_approval_to_dict(approval)
+        ),
+        evaluation=evaluation,
+        next_action=next_action_for_evaluation(evaluation),
+        ready_for_payment=evaluation.ready_for_payment,
+        razorpay_test_request=razorpay_test_request,
+    )
 
 
 @app.get("/health")
@@ -411,8 +892,8 @@ def execute_demo_scenario(
 
 
 @app.get("/merchants")
-def get_merchants():
-    contracts = list_merchant_contracts()
+def get_merchants(db: Session = Depends(get_db)):
+    contracts = list_merchant_contracts(db=db)
 
     return {
         "count": len(contracts),
@@ -424,8 +905,8 @@ def get_merchants():
 
 
 @app.get("/categories")
-def get_categories():
-    contracts = list_merchant_contracts()
+def get_categories(db: Session = Depends(get_db)):
+    contracts = list_merchant_contracts(db=db)
     return {
         "count": len(CATEGORIES),
         "categories": [
@@ -493,9 +974,12 @@ def analyze_visual_intent(
     "/assistant/chat",
     response_model=ProductAssistantChatResponse,
 )
-def product_assistant_chat(request: ProductAssistantChatRequest):
+def product_assistant_chat(
+    request: ProductAssistantChatRequest,
+    db: Session = Depends(get_db),
+):
     try:
-        return build_product_assistant_chat(request)
+        return build_product_assistant_chat(request, db)
     except ValueError as error:
         raise HTTPException(
             status_code=422,
@@ -531,7 +1015,7 @@ def confirm_visual_intent(
     request: VisualIntentConfirmationRequest,
     db: Session = Depends(get_db),
 ):
-    merchant_contract = get_merchant_or_404(request.merchant_id)
+    merchant_contract = get_merchant_or_404(request.merchant_id, db=db)
     require_merchant_access(
         merchant_contract,
         required_capabilities=("catalog_search", "inventory_check", "checkout"),
@@ -609,8 +1093,9 @@ def confirm_visual_intent(
             "idempotency_key": f"visual-{intent_record.intent_id}",
         }
         next_step = (
-            "Submit razorpay_test_request to POST "
-            "/payments/razorpay-test/orders. The user must still complete "
+            "Use the confirmation screen's Open Razorpay Checkout button. "
+            "API clients may submit razorpay_test_request to POST "
+            "/payments/razorpay-test/orders; the user must still complete "
             "Razorpay Checkout."
         )
 
@@ -629,8 +1114,8 @@ def confirm_visual_intent(
     "/merchants/{merchant_id}",
     response_model=MerchantContract,
 )
-def get_merchant_contract(merchant_id: str):
-    merchant_contract = get_merchant_or_404(merchant_id)
+def get_merchant_contract(merchant_id: str, db: Session = Depends(get_db)):
+    merchant_contract = get_merchant_or_404(merchant_id, db=db)
     require_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -645,16 +1130,16 @@ def get_merchant_contract(merchant_id: str):
     "/merchants/{merchant_id}/capabilities",
     response_model=MerchantCapabilities,
 )
-def get_merchant_capabilities(merchant_id: str):
-    return get_merchant_or_404(merchant_id).merchant.capabilities
+def get_merchant_capabilities(merchant_id: str, db: Session = Depends(get_db)):
+    return get_merchant_or_404(merchant_id, db=db).merchant.capabilities
 
 
 @app.get(
     "/merchants/{merchant_id}/catalog",
     response_model=MerchantCatalog,
 )
-def get_merchant_catalog(merchant_id: str):
-    merchant_contract = get_merchant_or_404(merchant_id)
+def get_merchant_catalog(merchant_id: str, db: Session = Depends(get_db)):
+    merchant_contract = get_merchant_or_404(merchant_id, db=db)
     require_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -665,12 +1150,281 @@ def get_merchant_catalog(merchant_id: str):
     return merchant_contract.catalog
 
 
+@app.post(
+    "/merchant/register",
+    response_model=MerchantSessionInfo,
+    status_code=201,
+)
+def register_merchant(
+    request: MerchantRegisterRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    if merchant_id_is_taken(db, request.merchant_id):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason_code": "MERCHANT_ID_TAKEN",
+                "message": f"Merchant ID '{request.merchant_id}' is already registered.",
+            },
+        )
+
+    # Profile and credential must be committed together. Otherwise a
+    # duplicate/racing registration could leave an account with a profile but
+    # no usable credential.
+    try:
+        register_merchant_profile(
+            db,
+            request.merchant_id,
+            request.display_name,
+            commit=False,
+        )
+        create_merchant_credential(
+            db,
+            request.merchant_id,
+            request.password,
+            commit=False,
+        )
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason_code": "MERCHANT_ID_TAKEN",
+                "message": f"Merchant ID '{request.merchant_id}' is already registered.",
+            },
+        ) from error
+
+    set_session_cookie(response, request.merchant_id)
+    return MerchantSessionInfo(
+        merchant_id=request.merchant_id,
+        display_name=request.display_name,
+    )
+
+
+@app.post(
+    "/merchant/session/login",
+    response_model=MerchantSessionInfo,
+)
+def merchant_login(
+    request: MerchantLoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    if not authenticate_merchant(db, request.merchant_id, request.password):
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "reason_code": "MERCHANT_CREDENTIALS_INVALID",
+                "message": "That merchant ID and password do not match.",
+            },
+        )
+
+    merchant_contract = get_merchant_or_404(request.merchant_id, db=db)
+    if not merchant_contract.merchant.active:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason_code": "MERCHANT_INACTIVE",
+                "message": "This merchant is not active for agent commerce.",
+            },
+        )
+
+    set_session_cookie(response, request.merchant_id)
+    return MerchantSessionInfo(
+        merchant_id=merchant_contract.merchant.merchant_id,
+        display_name=merchant_contract.merchant.display_name,
+    )
+
+
+@app.post(
+    "/merchant/password/forgot",
+    response_model=MerchantForgotPasswordResponse,
+)
+def forgot_merchant_password(
+    request: MerchantForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    token = create_password_reset_token(db, request.merchant_id)
+    if token is None:
+        return MerchantForgotPasswordResponse(
+            message=(
+                "If that merchant ID has an account, a password reset "
+                "token has been generated."
+            ),
+        )
+
+    return MerchantForgotPasswordResponse(
+        message=(
+            "Test Mode: IntentPay does not send email. Use this one-time "
+            "reset token to set a new password before it expires."
+        ),
+        reset_token=token,
+        expires_in_seconds=PASSWORD_RESET_TTL_SECONDS,
+    )
+
+
+@app.post(
+    "/merchant/password/reset",
+    response_model=MerchantResetPasswordResponse,
+)
+def reset_merchant_password(
+    request: MerchantResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    success = reset_password_with_token(db, request.reset_token, request.new_password)
+    if not success:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": "RESET_TOKEN_INVALID",
+                "message": (
+                    "That reset token is invalid, already used, or expired. "
+                    "Request a new one."
+                ),
+            },
+        )
+    return MerchantResetPasswordResponse(reset=True)
+
+
+@app.post("/merchant/session/logout")
+def merchant_logout(response: Response):
+    clear_session_cookie(response)
+    return {"logged_out": True}
+
+
+@app.get(
+    "/merchant/session",
+    response_model=MerchantSessionInfo,
+)
+def get_merchant_session(
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    merchant_contract = get_merchant_or_404(merchant_id, db=db)
+    return MerchantSessionInfo(
+        merchant_id=merchant_contract.merchant.merchant_id,
+        display_name=merchant_contract.merchant.display_name,
+    )
+
+
+@app.get(
+    "/merchant/catalog",
+    response_model=MerchantDashboardCatalog,
+)
+def get_merchant_dashboard_catalog(
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    merchant_contract = get_merchant_or_404(merchant_id, db=db, apply_overlay=False)
+    entries = list_merchant_dashboard_products(merchant_contract, db)
+    return MerchantDashboardCatalog(
+        merchant_id=merchant_contract.merchant.merchant_id,
+        display_name=merchant_contract.merchant.display_name,
+        count=len(entries),
+        products=[MerchantCatalogEntry(**entry) for entry in entries],
+    )
+
+
+@app.post(
+    "/merchant/catalog/products",
+    response_model=MerchantCatalogEntry,
+    status_code=201,
+)
+def create_merchant_product(
+    product: Product,
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    merchant_contract = get_merchant_or_404(merchant_id, db=db, apply_overlay=False)
+    override = upsert_merchant_product(db, merchant_contract, product)
+    return MerchantCatalogEntry(
+        product=product,
+        is_custom=not any(
+            p.product_id == product.product_id
+            for p in merchant_contract.catalog.products
+        ),
+        is_active=override.is_active,
+    )
+
+
+@app.put(
+    "/merchant/catalog/products/{product_id}",
+    response_model=MerchantCatalogEntry,
+)
+def update_merchant_product(
+    product_id: str,
+    product: Product,
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    if product.product_id != product_id:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": "PRODUCT_ID_MISMATCH",
+                "message": "The product ID in the URL and body must match.",
+            },
+        )
+
+    merchant_contract = get_merchant_or_404(merchant_id, db=db, apply_overlay=False)
+    override = upsert_merchant_product(db, merchant_contract, product)
+    return MerchantCatalogEntry(
+        product=product,
+        is_custom=not any(
+            p.product_id == product.product_id
+            for p in merchant_contract.catalog.products
+        ),
+        is_active=override.is_active,
+    )
+
+
+def _set_merchant_product_active(
+    product_id: str,
+    is_active: bool,
+    merchant_id: str,
+    db: Session,
+) -> dict:
+    merchant_contract = get_merchant_or_404(merchant_id, db=db, apply_overlay=False)
+    override = set_merchant_product_active_state(
+        db, merchant_contract, product_id, is_active
+    )
+    if override is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "reason_code": "PRODUCT_NOT_FOUND",
+                "message": f"Product '{product_id}' was not found in your catalog.",
+            },
+        )
+    return {"product_id": product_id, "is_active": override.is_active}
+
+
+@app.post("/merchant/catalog/products/{product_id}/deactivate")
+def deactivate_merchant_product(
+    product_id: str,
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    return _set_merchant_product_active(product_id, False, merchant_id, db)
+
+
+@app.post("/merchant/catalog/products/{product_id}/activate")
+def activate_merchant_product(
+    product_id: str,
+    merchant_id: str = Depends(require_active_merchant),
+    db: Session = Depends(get_db),
+):
+    return _set_merchant_product_active(product_id, True, merchant_id, db)
+
+
 @app.post("/intents", status_code=201)
 def create_intent(
     intent: IntentMandate,
     db: Session = Depends(get_db),
 ):
-    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
     require_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -710,7 +1464,7 @@ def select_intent_product(
 ):
     intent_record = get_intent_or_404(db, intent_id)
     intent = mandate_from_record(intent_record)
-    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
     require_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -748,15 +1502,23 @@ def select_intent_product(
         intent_record,
         request.product_id,
     )
-    return intent_to_dict(updated_record)
+    return {
+        **intent_to_dict(updated_record),
+        # The canonical catalog product (image included) for the
+        # confirmed selection, so the frontend can keep showing the same
+        # product card without re-deriving it from the LLM or a client-
+        # side index.
+        "product": product,
+    }
 
 
 @app.get("/products")
 def get_products(
     merchant_id: str = Query(default=DEFAULT_MERCHANT_ID),
     category: str | None = Query(default=None),
+    db: Session = Depends(get_db),
 ):
-    merchant_contract = get_merchant_or_404(merchant_id)
+    merchant_contract = get_merchant_or_404(merchant_id, db=db)
     require_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -789,8 +1551,11 @@ def get_products(
 
 
 @app.post("/products/filter")
-def get_allowed_products(intent: IntentMandate):
-    merchant_contract = get_merchant_or_404(intent.merchant_id)
+def get_allowed_products(
+    intent: IntentMandate,
+    db: Session = Depends(get_db),
+):
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
     require_merchant_access(
         merchant_contract,
         required_capabilities=(
@@ -847,6 +1612,7 @@ def verify_proposed_purchase(
     ) = evaluate_purchase_request(
         intent_record,
         request.purchase,
+        db=db,
     )
 
     return {
@@ -876,6 +1642,7 @@ def create_verified_payment(
     ) = evaluate_purchase_request(
         intent_record,
         request.purchase,
+        db=db,
     )
     try:
         create_audit_log(
@@ -1003,7 +1770,7 @@ def create_razorpay_test_order(
         intent_decision,
         policy_result,
         final_decision,
-    ) = evaluate_purchase_request(intent_record, request.purchase)
+    ) = evaluate_purchase_request(intent_record, request.purchase, db=db)
 
     try:
         create_audit_log(
@@ -1311,7 +2078,7 @@ def execute_buyer_agent(
     intent = mandate_from_record(
         intent_record
     )
-    merchant_contract = get_merchant_or_404(intent.merchant_id)
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
 
     # --------------------------------------------------------
     # 2. Load user-confirmed selection when it exists
@@ -1359,21 +2126,12 @@ def evaluate_buyer_agent_proposal(
         intent_id,
     )
 
-    intent = mandate_from_record(
-        intent_record
-    )
-    merchant_contract = get_merchant_or_404(intent.merchant_id)
-
-    confirmed_product_id = (
-        intent_record.selected_product_id
-        if intent_record.selection_confirmed
-        else None
-    )
-
-    evaluation = evaluate_intent_pipeline(
-        intent=intent,
-        merchant_contract=merchant_contract,
-        confirmed_product_id=confirmed_product_id,
+    intent = mandate_from_record(intent_record)
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
+    evaluation = evaluate_persisted_intent(
+        intent_record,
+        merchant_contract,
+        db,
     )
     persist_buyer_agent_audit_logs(
         db=db,
@@ -1408,16 +2166,11 @@ def orchestrate_intent(
 ):
     intent_record = get_intent_or_404(db, intent_id)
     intent = mandate_from_record(intent_record)
-    merchant_contract = get_merchant_or_404(intent.merchant_id)
-    confirmed_product_id = (
-        intent_record.selected_product_id
-        if intent_record.selection_confirmed
-        else None
-    )
-    evaluation = evaluate_intent_pipeline(
-        intent=intent,
-        merchant_contract=merchant_contract,
-        confirmed_product_id=confirmed_product_id,
+    merchant_contract = get_merchant_or_404(intent.merchant_id, db=db)
+    evaluation = evaluate_persisted_intent(
+        intent_record,
+        merchant_contract,
+        db,
     )
     persist_buyer_agent_audit_logs(
         db=db,

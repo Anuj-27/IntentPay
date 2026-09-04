@@ -31,7 +31,7 @@ Currently implemented and tested:
 - audit secret redaction and safe HTTP response headers,
 - executable orchestration traces and five local demo scenarios,
 - a versioned 500-case synthetic benchmark with measured metrics,
-- 101 automated regression tests.
+- 212 automated regression tests at the current repository state.
 
 A credentialed Razorpay Test Mode smoke test, frontend, deployment, and
 production authentication/authorization remain future work. The adapter is
@@ -2100,14 +2100,17 @@ After confirmation, the existing Buyer Agent, Recommendation Integrity guard,
 Intent Verifier, Merchant Policy Engine, and Trust Gate run unchanged. Only an
 `ALLOW` response includes a ready-to-submit `razorpay_test_request`. That object
 is accepted by `POST /payments/razorpay-test/orders`, which creates the provider
-order only when Test Mode credentials are configured. The user must still
-complete Razorpay Checkout; server signature verification and signed webhook
-processing remain mandatory.
+order only when Test Mode credentials are configured. The home confirmation
+screen now opens Razorpay Standard Checkout through
+`frontend/razorpay_checkout.js` and posts the Checkout response to
+`POST /payments/{payment_id}/razorpay-test/verify-checkout`. Server signature
+verification and signed webhook processing remain mandatory before fulfillment.
 
 Automated coverage proves the complete boundary using a mocked Razorpay Test
-transport without network calls or real money. The full suite now contains 125
-passing tests. A credentialed real-account smoke test still requires the
-project owner's Razorpay Test Mode credentials.
+transport without network calls or real money. The full suite currently
+contains 212 passing tests. A credentialed real-account smoke test still
+requires the project owner's Razorpay Test Mode credentials and a reachable
+webhook URL.
 
 ---
 
@@ -2159,5 +2162,47 @@ existing deterministic gates. The legacy visual endpoint remains available for
 clients that specifically want screenshot analysis.
 
 The redesigned page is responsive, keyboard-accessible, and keeps discovery,
-verification, and authorization visually distinct. The full test suite now
-contains 131 passing tests.
+verification, and authorization visually distinct. That was the Level 55
+checkpoint; subsequent merchant, search, image, and conversation-state work
+expanded the current suite to 212 passing tests.
+
+## Budget boundary correction
+
+An explicit maximum is a hard financial constraint for normal discovery and
+authorization: the complete purchase total (`price × quantity`) must be less
+than or equal to `IntentMandate.max_budget`. The product search path now drops
+above-budget products before normal ranking, while the Budget Stretch Engine
+may inspect those rejected records only to produce a separate
+`REQUIRES_REAUTHORIZATION` optional candidate. An upsell can never become an
+approved product or a payment proposal without a new explicit maximum and the
+existing verification and Trust Gate checks.
+
+## Current security and deployment boundary
+
+Local Test Mode remains intentionally easy to run: it uses a development-only
+session-secret fallback and returns password-reset tokens directly because no
+email transport is configured. Any staging or production deployment must set
+`APP_ENV=production`, provide a unique `MERCHANT_SESSION_SECRET` of at least
+32 characters, use HTTPS, and replace the Test Mode password-reset transport
+with a real verified delivery channel. CSRF protection, rate limiting,
+observability, object storage for merchant images, and a credentialed Razorpay
+Test Mode smoke test remain deployment-hardening tasks.
+
+---
+
+# 56. Merchant Approval Workflow — Implemented
+
+An `ESCALATE` result now has a persisted, expiring merchant approval request
+bound to the exact intent, merchant, product, and verified amount. A shopper
+can request review with `POST /intents/{intent_id}/merchant-approval`. The
+authenticated merchant dashboard exposes pending requests and supports
+approve/reject actions through `POST
+/merchant/approvals/{approval_id}/decision`.
+
+Approval does not override hard transaction limits, product availability,
+budget, or user authorization. After either merchant decision, IntentPay
+re-runs the complete deterministic pipeline: an approved request can become
+`ALLOW`, a rejection becomes `BLOCK`, and an expired request cannot create a
+payment order. The existing internal ledger and Razorpay Test Mode payment
+routes also load only a matching, unexpired `APPROVED` record. Every request
+and decision is recorded in the audit log.

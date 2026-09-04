@@ -1,0 +1,220 @@
+/* IntentPay AI Assistant — shared conversational engine styles, used by
+   both the full-screen `/chat` page and the floating widget on `/`. */
+
+.ip-mount { color: var(--dark-ink); }
+
+/* ---------- Fullscreen variant: landing / hero ---------- */
+.ip-variant-fullscreen { display: flex; flex-direction: column; justify-content: center; min-height: calc(100vh - 72px); padding: 8px clamp(16px, 4vw, 44px) 34px; }
+.ip-variant-fullscreen .ip-landing { max-width: 720px; margin: 0 auto; padding-bottom: 10px; text-align: center; }
+.ip-variant-fullscreen .ip-landing.is-collapsed {
+  max-height: 0; margin: 0 auto; padding: 0; opacity: 0; pointer-events: none;
+  overflow: hidden; transition: max-height 0.5s var(--ease), opacity 0.32s ease, padding 0.5s var(--ease);
+}
+.ip-wordmark { color: var(--dark-muted); font-family: var(--font-display); font-weight: 700; font-size: 0.72rem; letter-spacing: 0.34em; }
+.ip-pipeline { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 14px; color: var(--dark-muted); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.ip-pipeline b { color: rgba(159, 178, 167, 0.5); font-weight: 400; }
+.ip-hero { margin: 28px 0 0; font-size: clamp(2.1rem, 5vw, 3.4rem); line-height: 1.05; letter-spacing: -0.02em; color: #fff; }
+.ip-hero-sub { max-width: 480px; margin: 16px auto 0; color: var(--dark-muted); font-size: 0.94rem; line-height: 1.6; }
+
+.ip-variant-fullscreen .ip-conversation { max-width: 760px; width: 100%; margin: 0 auto; flex: 1; overflow-y: auto; padding: 6px 2px 18px; scrollbar-width: thin; }
+.ip-variant-fullscreen .ip-composer-wrap { max-width: 720px; width: 100%; margin: 6px auto 0; }
+.ip-variant-fullscreen .ip-examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-top: 12px; }
+.ip-examples button { padding: 7px 12px; border: 1px solid var(--dark-border); border-radius: 999px; color: var(--dark-muted); background: transparent; font-size: 0.66rem; transition: 0.2s; }
+.ip-examples button:hover { border-color: var(--dark-brand); color: var(--dark-brand); }
+
+/* ---------- Widget variant: compact header + panel body ---------- */
+.ip-variant-widget { display: flex; flex-direction: column; height: 100%; }
+.ip-widget-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--dark-border); flex: 0 0 auto; }
+.ip-avatar-lg { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: var(--dark-brand); background: var(--dark-brand-soft); font-size: 0.85rem; }
+.ip-widget-heading { flex: 1; min-width: 0; }
+.ip-widget-heading strong { display: block; color: var(--dark-ink); font-size: 0.82rem; }
+.ip-widget-heading small { display: flex; align-items: center; gap: 5px; margin-top: 2px; color: var(--dark-muted); font-size: 0.65rem; }
+.ip-online-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dark-brand); box-shadow: 0 0 0 3px var(--dark-brand-soft); animation: ipOnlinePulse 2.4s ease-in-out infinite; }
+@keyframes ipOnlinePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+.ip-widget-close { width: 26px; height: 26px; border: 0; border-radius: 8px; color: var(--dark-muted); background: transparent; font-size: 1.1rem; line-height: 1; transition: 0.2s; }
+.ip-widget-close:hover { color: var(--dark-ink); background: var(--dark-card-hover); }
+.ip-variant-widget .ip-conversation { flex: 1; overflow-y: auto; padding: 12px 14px; scrollbar-width: thin; }
+.ip-variant-widget .ip-composer-wrap { flex: 0 0 auto; padding: 0 12px 12px; }
+.ip-variant-widget .ip-intent,
+.ip-variant-widget .ip-products,
+.ip-variant-widget .ip-panel,
+.ip-variant-widget .ip-trust-panel,
+.ip-variant-widget .ip-error-text,
+.ip-variant-widget .ip-empty-actions { margin-left: 0; }
+.ip-variant-widget .ip-products { grid-template-columns: 1fr; }
+.ip-variant-widget .ip-panel, .ip-variant-widget .ip-trust-panel { max-width: none; }
+
+/* ---------- Workflow-path rail ---------- */
+.ip-workflow-rail { display: flex; align-items: center; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--dark-border); }
+.ip-variant-fullscreen .ip-workflow-rail { max-width: 760px; width: 100%; margin: 0 auto; border: 0; padding: 4px 2px 10px; }
+.ip-workflow-step { display: flex; align-items: center; gap: 5px; opacity: 0; transform: translateZ(-14px) scale(0.9); animation: ipWorkflowIn 0.4s var(--ease) forwards; }
+@keyframes ipWorkflowIn { to { opacity: 1; transform: none; } }
+.ip-workflow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dark-border); transition: background 0.3s, box-shadow 0.3s; }
+.ip-workflow-step.done .ip-workflow-dot { background: var(--dark-brand); }
+.ip-workflow-step.current .ip-workflow-dot { background: var(--dark-brand); box-shadow: 0 0 0 4px var(--dark-brand-soft); animation: ipWorkflowGlow 1.6s ease-in-out infinite; }
+@keyframes ipWorkflowGlow { 0%, 100% { box-shadow: 0 0 0 3px var(--dark-brand-soft); } 50% { box-shadow: 0 0 0 6px var(--dark-brand-soft); } }
+.ip-workflow-label { color: var(--dark-muted); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.03em; }
+.ip-workflow-step.done .ip-workflow-label, .ip-workflow-step.current .ip-workflow-label { color: var(--dark-ink); }
+.ip-workflow-step:not(:last-child)::after { content: ""; width: 14px; height: 1px; margin: 0 2px; background: var(--dark-border); }
+
+/* ---------- Conversation turns ---------- */
+.ip-turn { margin-bottom: 22px; }
+.ip-turn-user { display: flex; justify-content: flex-end; margin-bottom: 22px; }
+.ip-turn-user .ip-bubble { max-width: 80%; padding: 11px 15px; border-radius: 16px 4px 16px 16px; color: var(--dark-bg); background: var(--dark-brand); font-size: 0.85rem; line-height: 1.55; white-space: pre-wrap; }
+.ip-turn-assistant { display: flex; gap: 10px; align-items: flex-start; }
+.ip-avatar { flex: 0 0 26px; width: 26px; height: 26px; display: grid; place-items: center; margin-top: 2px; border-radius: 8px; color: var(--dark-brand); background: var(--dark-brand-soft); font-size: 0.68rem; }
+.ip-turn-body { min-width: 0; flex: 1; }
+.ip-reply-text { padding: 11px 15px; border: 1px solid var(--dark-border); border-radius: 4px 16px 16px; color: var(--dark-ink); background: var(--dark-card); font-size: 0.85rem; line-height: 1.6; }
+
+.ip-thinking { display: flex; align-items: center; gap: 9px; padding: 11px 15px; color: var(--dark-muted); font-size: 0.8rem; }
+.ip-thinking-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dark-brand); animation: ipPulse 1.1s ease-in-out infinite; }
+@keyframes ipPulse { 0%, 100% { opacity: 0.3; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } }
+
+.ip-pop { opacity: 0; transform: translateY(16px) scale(0.985); filter: blur(5px); animation: ipPop 0.5s var(--ease) forwards; }
+@keyframes ipPop { to { opacity: 1; transform: none; filter: blur(0); } }
+
+/* ---------- Intent chips ---------- */
+.ip-intent { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px 36px; }
+.ip-chip { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid var(--dark-border); border-radius: 12px; background: var(--dark-card); cursor: pointer; transition: border-color 0.2s var(--ease), background 0.2s var(--ease); }
+.ip-chip:hover, .ip-chip:focus-visible { border-color: var(--dark-brand); background: var(--dark-card-hover); }
+.ip-chip span { color: var(--dark-muted); font-size: 0.56rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.ip-chip strong { color: var(--dark-ink); font-size: 0.78rem; }
+
+/* ---------- Product results (subtle 3D hover) ---------- */
+.ip-products { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 14px 0 4px 36px; perspective: 900px; }
+.ip-product { padding: 13px; border: 1px solid var(--dark-border); border-radius: 14px; background: var(--dark-card); text-align: left; transition: transform 0.28s var(--ease), box-shadow 0.28s var(--ease), border-color 0.28s var(--ease); transform-style: preserve-3d; }
+.ip-product:hover { transform: translateY(-4px) translateZ(10px) rotateX(2deg) rotateY(-1.5deg); border-color: rgba(63, 219, 149, 0.4); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35); }
+.ip-product h3 { margin: 0; color: var(--dark-ink); font-size: 0.8rem; letter-spacing: -0.01em; }
+.ip-product p { margin: 4px 0 8px; color: var(--dark-muted); font-size: 0.63rem; }
+.ip-product-price { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem; color: var(--dark-ink); }
+.ip-product-price span { color: var(--dark-brand); font-size: 0.58rem; font-weight: 700; }
+.ip-product-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.ip-product-reasons span { padding: 3px 6px; border-radius: 4px; color: var(--dark-muted); background: rgba(255, 255, 255, 0.06); font-size: 0.55rem; }
+.ip-select-product { width: 100%; padding: 8px; border: 1px solid rgba(63, 219, 149, 0.35); border-radius: 8px; color: var(--dark-brand); background: transparent; font-size: 0.65rem; font-weight: 700; transition: 0.2s; }
+.ip-select-product:hover { color: var(--dark-bg); background: var(--dark-brand); }
+.ip-product .product-media { background: rgba(255, 255, 255, 0.04); }
+.ip-product .product-spec-chips span { background: var(--dark-brand-soft); color: var(--dark-brand); }
+.ip-product .product-meta-row .product-color::before { color: var(--dark-border); }
+.ip-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px 36px; }
+.ip-empty-actions button { padding: 8px 12px; border: 1px solid var(--dark-border); border-radius: 999px; color: var(--dark-ink); background: var(--dark-card); font-size: 0.68rem; font-weight: 600; transition: 0.2s; }
+.ip-empty-actions button:hover { border-color: var(--dark-brand); color: var(--dark-brand); }
+
+/* ---------- Review / edit panel ---------- */
+.ip-panel { margin: 14px 0 4px 36px; padding: 16px; border: 1px solid var(--dark-border); border-radius: 16px; background: var(--dark-card); max-width: 520px; }
+.ip-panel-kicker { margin: 0 0 4px; color: var(--dark-brand); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.58rem; font-weight: 800; }
+.ip-panel h3 { margin: 0 0 10px; color: var(--dark-ink); font-size: 0.95rem; }
+.ip-panel p { margin: 0 0 12px; color: var(--dark-muted); font-size: 0.72rem; line-height: 1.55; }
+.ip-review-fields { display: flex; gap: 10px; margin-bottom: 12px; }
+.ip-review-fields label { flex: 1; display: block; color: var(--dark-muted); font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.ip-review-fields input { display: block; width: 100%; margin-top: 6px; padding: 8px 9px; border: 1px solid var(--dark-border); border-radius: 8px; color: var(--dark-ink); background: rgba(0, 0, 0, 0.22); font-size: 0.82rem; }
+.ip-review-check { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; color: var(--dark-muted); font-size: 0.72rem; line-height: 1.5; cursor: pointer; }
+.ip-review-check input { margin-top: 2px; }
+.ip-confirm-btn { width: 100%; padding: 11px; border: 0; border-radius: 9px; color: var(--dark-bg); background: var(--dark-brand); font-size: 0.76rem; font-weight: 800; transition: opacity 0.2s; }
+.ip-confirm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------- Trust Gate ---------- */
+.ip-trust-panel { margin: 14px 0 4px 36px; padding: 18px; border: 1px solid var(--dark-border); border-radius: 18px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)); max-width: 520px; }
+.ip-trust-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.ip-trust-heading span { color: var(--dark-brand); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.6rem; font-weight: 800; }
+.ip-trust-checks { display: grid; gap: 8px; margin-bottom: 14px; }
+.ip-check { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); color: var(--dark-muted); font-size: 0.72rem; opacity: 0; transform: translateX(-8px); animation: ipCheckIn 0.4s var(--ease) forwards; }
+@keyframes ipCheckIn { to { opacity: 1; transform: none; } }
+.ip-check-icon { flex: 0 0 18px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; font-size: 0.6rem; font-weight: 800; background: rgba(255, 255, 255, 0.08); color: var(--dark-muted); }
+.ip-check.pass .ip-check-icon { color: var(--dark-bg); background: var(--dark-brand); }
+.ip-check.fail .ip-check-icon { color: #fff; background: var(--red); }
+.ip-check.pending .ip-check-icon { color: #3a2205; background: var(--accent); }
+.ip-check.pass { color: var(--dark-ink); }
+.ip-check.fail { color: #f3d4cd; }
+.ip-check.pending { color: #f2d9b8; }
+.ip-check small { display: block; margin-top: 2px; color: var(--dark-muted); font-size: 0.62rem; }
+
+.ip-decision-badge { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; }
+.ip-decision-badge.ALLOW { color: #042417; background: var(--dark-brand); }
+.ip-decision-badge.REASK { color: #3a2205; background: #f2b25c; }
+.ip-decision-badge.BLOCK { color: #fff; background: var(--red); }
+.ip-decision-badge.ESCALATE { color: #fff; background: var(--violet); }
+.ip-decision-note { margin: 10px 0 0; color: var(--dark-muted); font-size: 0.74rem; line-height: 1.55; }
+.ip-decision-note strong { color: var(--dark-ink); }
+
+/* ---------- Payment / approval / reask / prove panels ---------- */
+.ip-payment-badge { display: inline-block; margin-bottom: 10px; padding: 3px 8px; border-radius: 5px; color: #042417; background: var(--dark-brand); font-size: 0.55rem; font-weight: 800; letter-spacing: 0.06em; }
+.ip-pay-btn { width: 100%; margin-top: 10px; padding: 11px; border: 0; border-radius: 9px; color: var(--dark-bg); background: var(--dark-brand); font-size: 0.76rem; font-weight: 800; }
+.ip-pay-btn:disabled { opacity: 0.55; cursor: wait; }
+.ip-reconcile-btn { width: 100%; margin-top: 8px; padding: 9px; border: 1px solid var(--dark-border); border-radius: 9px; color: var(--dark-ink); background: transparent; font-size: 0.7rem; font-weight: 700; }
+.ip-pay-status { margin-top: 9px; color: var(--dark-muted); font-size: 0.68rem; }
+.ip-pay-status.is-success { color: var(--dark-brand); }
+.ip-pay-status.is-error { color: #f3a08c; }
+
+.ip-reask-actions, .ip-approval-actions { display: flex; gap: 8px; margin-top: 4px; }
+.ip-reask-actions button, .ip-approval-actions button { flex: 1; padding: 9px 10px; border: 1px solid var(--dark-border); border-radius: 8px; color: var(--dark-ink); background: transparent; font-size: 0.68rem; font-weight: 700; transition: 0.2s; }
+.ip-reask-actions .primary, .ip-approval-actions .primary { color: var(--dark-bg); background: var(--dark-brand); border-color: transparent; }
+.ip-reask-actions button:hover, .ip-approval-actions button:hover { border-color: var(--dark-brand); }
+.ip-approval-status { margin-top: 10px; color: var(--dark-muted); font-size: 0.7rem; line-height: 1.5; }
+.ip-reask-increase-panel { margin-top: 12px; }
+.ip-reask-new-budget-label { display: block; color: var(--dark-muted); font-size: 0.62rem; font-weight: 700; text-transform: uppercase; }
+.ip-reask-new-budget { display: block; width: 100%; margin-top: 6px; padding: 8px 9px; border: 1px solid var(--dark-border); border-radius: 8px; color: var(--dark-ink); background: rgba(0, 0, 0, 0.22); font-size: 0.82rem; }
+.ip-reask-increase-panel .ip-confirm-btn { margin-top: 10px; }
+
+.ip-prove-checks { display: grid; gap: 6px; margin: 10px 0 12px; }
+.ip-prove-checks span { display: flex; align-items: center; gap: 7px; color: var(--dark-ink); font-size: 0.72rem; }
+.ip-prove-checks span::before { content: "✓"; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; color: var(--dark-bg); background: var(--dark-brand); font-size: 0.55rem; }
+.ip-audit-link { display: inline-flex; align-items: center; gap: 6px; color: var(--dark-brand); text-decoration: none; font-size: 0.74rem; font-weight: 700; }
+.ip-audit-link:hover { text-decoration: underline; }
+
+.ip-error-text { margin: 10px 0 4px 36px; padding: 11px 15px; border: 1px solid rgba(214, 86, 60, 0.35); border-radius: 12px; color: #f3a08c; background: rgba(182, 67, 47, 0.12); font-size: 0.78rem; max-width: 520px; }
+.ip-retry-btn { margin: 8px 0 0 36px; padding: 7px 12px; border: 1px solid var(--dark-border); border-radius: 8px; color: var(--dark-ink); background: transparent; font-size: 0.68rem; font-weight: 700; }
+
+/* ---------- Composer ---------- */
+.ip-composer-glass {
+  padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 20px;
+  background: rgba(20, 30, 26, 0.55); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.2s var(--ease);
+}
+.ip-composer-glass:focus-within { border-color: rgba(63, 219, 149, 0.45); }
+.ip-composer-row { display: flex; align-items: flex-end; gap: 8px; }
+.ip-attach-btn { flex: 0 0 34px; width: 34px; height: 34px; display: grid; place-items: center; margin-bottom: 2px; border: 1px solid var(--dark-border); border-radius: 10px; color: var(--dark-muted); background: transparent; font-size: 0.95rem; transition: 0.2s; }
+.ip-attach-btn:hover { color: var(--dark-brand); border-color: var(--dark-brand); }
+.ip-composer-row textarea { flex: 1; min-height: 26px; max-height: 140px; padding: 8px 4px; border: 0; outline: 0; resize: none; color: var(--dark-ink); background: transparent; font-size: 0.9rem; font-family: var(--font-body); line-height: 1.5; }
+.ip-composer-row textarea::placeholder { color: var(--dark-muted); }
+.ip-send-btn { flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; margin-bottom: 1px; border: 0; border-radius: 11px; color: var(--dark-bg); background: var(--dark-brand); font-size: 1rem; transition: transform 0.2s var(--ease), opacity 0.2s; }
+.ip-send-btn:hover { transform: translateY(-1px) translateX(1px); }
+.ip-send-btn:disabled { opacity: 0.45; cursor: wait; }
+.ip-composer-foot { padding: 7px 6px 3px; }
+.ip-composer-note { color: var(--dark-muted); font-size: 0.6rem; }
+.ip-composer-note span { color: var(--dark-brand); }
+
+.attachment-preview { display: flex; align-items: center; gap: 8px; padding: 5px 5px 9px; }
+.attachment-preview img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; }
+.attachment-preview strong, .attachment-preview small { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-preview strong { color: var(--dark-ink); font-size: 0.64rem; }
+.attachment-preview small { margin-top: 3px; color: var(--dark-muted); font-size: 0.56rem; }
+.attachment-preview button { margin-left: auto; border: 0; color: var(--dark-muted); background: transparent; font-size: 1.1rem; }
+.ip-composer-glass.is-dragging { border-color: var(--dark-brand); background: rgba(63, 219, 149, 0.08); }
+
+/* ---------- Intro choreography (fullscreen only) ---------- */
+html.ip-armed .ip-intro { opacity: 0; transform: translateY(20px); filter: blur(8px); transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), filter 0.6s var(--ease); }
+html.ip-armed .ip-intro.is-in { opacity: 1; transform: none; filter: blur(0); }
+.ip-intro-1 { transition-delay: 0.0s; }
+.ip-intro-2 { transition-delay: 0.15s; }
+.ip-intro-3 { transition-delay: 0.3s; }
+.ip-intro-4 { transition-delay: 0.45s; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 720px) {
+  .ip-hero { font-size: 2rem; }
+  .ip-intent, .ip-products, .ip-panel, .ip-trust-panel, .ip-error-text, .ip-empty-actions { margin-left: 0; }
+  .ip-products { grid-template-columns: 1fr; }
+  .ip-panel, .ip-trust-panel { max-width: none; }
+  .ip-review-fields { flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .ip-wordmark { letter-spacing: 0.2em; }
+  .ip-pipeline { flex-wrap: wrap; gap: 5px 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ip-online-dot { animation: none; }
+  .ip-workflow-step.current .ip-workflow-dot { animation: none; }
+  .ip-product:hover { transform: translateY(-2px); }
+}

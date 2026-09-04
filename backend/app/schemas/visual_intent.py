@@ -104,6 +104,7 @@ class VisualAnalyzerConfiguration(BaseModel):
     mode: Literal["LOCAL_VISION", "LOCAL_OCR", "OPENAI_VISION"]
     local_vision_available: bool
     local_vision_model: str
+    local_vision_gpu_accelerated: bool | None = None
     local_ocr_available: bool
     openai_configured: bool
     sends_images_to_external_provider: bool

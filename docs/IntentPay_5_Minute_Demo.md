@@ -23,7 +23,7 @@ terminal ready for:
 .\scripts\run_demo.ps1 -IncludeBenchmark
 ```
 
-Expected preparation result: 123 tests pass, the API starts, and Swagger shows
+Expected preparation result: the full test suite passes, the API starts, and Swagger shows
 the orchestration, safety, evaluation, demo, payment, webhook, and audit routes.
 
 ## 0:00–0:35 — The problem and one-line pitch
@@ -49,6 +49,12 @@ Show `POST /intents/{intent_id}/orchestrate` in Swagger and say:
 
 Point out `payment_executed: false` in the orchestration schema. Explain that an
 ALLOW is readiness, not an automatic charge.
+
+If the response is `ESCALATE`, show that `next_action` is
+`REQUEST_MERCHANT_HUMAN_APPROVAL`. The shopper can request review at
+`POST /intents/{intent_id}/merchant-approval`; the merchant dashboard then
+shows the exact product and amount. Approval re-runs the Trust Gate and only an
+`ALLOW` exposes a payment request. A rejection becomes `BLOCK`.
 
 Also briefly open `GET /categories` and `POST /visual-intents/analyze`:
 
@@ -161,9 +167,11 @@ End on the project statement in `docs/IntentPay_Project_Context.md`.
 ## Optional credentialed Razorpay segment
 
 After your own test keys and public webhook are configured, replace the internal
-normal-purchase simulation with `POST /payments/razorpay-test/orders`, open
-Checkout using the returned options, verify the browser signature, and show the
-signed captured webhook. Keep the internal scenario as a recording fallback.
+normal-purchase simulation with the home page's **Open Razorpay Checkout**
+button. IntentPay creates the Test Mode order only after `ALLOW`, opens
+Checkout using the returned options, verifies the browser signature, and can
+then show the signed captured webhook. Keep the internal scenario as a
+recording fallback.
 Never place credentials or the full `.env` on screen.
 
 ## Recording fallback

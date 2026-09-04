@@ -45,6 +45,7 @@ class StretchCandidateResult(BaseModel):
 
     product: Product
     decision: DecisionType
+    status: Literal["REQUIRES_REAUTHORIZATION"] = "REQUIRES_REAUTHORIZATION"
 
     over_budget_amount: int = Field(gt=0)
     over_budget_percent: float = Field(gt=0)

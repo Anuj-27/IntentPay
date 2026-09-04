@@ -18,6 +18,7 @@ def evaluate_intent_pipeline(
     intent: IntentMandate,
     merchant_contract: MerchantContract,
     confirmed_product_id: str | None = None,
+    merchant_approval: dict | None = None,
 ) -> BuyerAgentEvaluationResult:
     buyer_result = run_buyer_agent(
         intent=intent,
@@ -81,6 +82,7 @@ def evaluate_intent_pipeline(
     final_decision = evaluate_trust_gate(
         intent_decision,
         policy_result,
+        merchant_approval=merchant_approval,
     )
 
     return BuyerAgentEvaluationResult(
@@ -198,4 +200,3 @@ def next_action_for_evaluation(
     if decision == DecisionType.ESCALATE:
         return "REQUEST_MERCHANT_HUMAN_APPROVAL"
     return "STOP_PURCHASE"
-

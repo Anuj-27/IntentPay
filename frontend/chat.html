@@ -3,64 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="IntentPay product assistant for catalog-grounded recommendations.">
-  <title>IntentPay — Product Assistant</title>
+  <meta name="description" content="IntentPay AI — describe what you want to buy and IntentPay finds catalog-grounded options behind a deterministic Trust Gate.">
+  <meta name="theme-color" content="#071510">
+  <title>IntentPay AI — From intent to trusted payment</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1d17'/%3E%3Ctext x='32' y='42' font-family='Arial,Helvetica,sans-serif' font-size='24' font-weight='700' fill='%233fdb95' text-anchor='middle'%3EIP%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/tokens.css">
   <link rel="stylesheet" href="/assets/chat.css">
+  <link rel="stylesheet" href="/assets/assistant.css">
 </head>
-<body class="chat-body">
-  <div class="app-shell">
-    <aside class="side-rail">
-      <a class="chat-brand" href="/" aria-label="IntentPay home"><span class="chat-brand-mark">IP</span><span>IntentPay</span></a>
-      <div class="rail-label">Workspace</div>
-      <nav class="rail-nav" aria-label="IntentPay tools">
-        <a class="active" href="/chat"><span>✦</span><strong>Assistant</strong></a>
-        <a href="/"><span>✓</span><strong>Verify purchase</strong></a>
-      </nav>
-      <div class="rail-spacer"></div>
-      <div class="rail-safety"><span class="rail-safety-dot"></span><div><strong>Private mode</strong><small>Images stay local</small></div></div>
-      <a class="rail-docs" href="/docs" target="_blank" rel="noreferrer">API docs <span>↗</span></a>
-    </aside>
+<body class="ip-body">
 
-    <main class="workspace">
-      <header class="workspace-bar">
-        <div class="breadcrumbs"><span>Workspace</span><b>/</b><strong>Product assistant</strong></div>
-        <div class="workspace-actions"><span class="live-badge"><i></i> Local AI ready</span><span class="avatar">B</span></div>
-      </header>
-
-      <div class="workspace-content">
-        <section class="welcome-row">
-          <div><p class="chat-eyebrow">Discovery workspace</p><h1>What are you<br><em>shopping for?</em></h1><p class="chat-subtitle">Tell me what matters. I’ll turn your request into clear, catalog-grounded options—before anything can be authorized.</p></div>
-          <div class="welcome-rule"><span>01</span><div><strong>Explore first</strong><small>Chat recommends.<br>Verify authorizes.</small></div></div>
-        </section>
-
-        <section class="task-row" aria-label="Start a task">
-          <button class="task-card" type="button" data-prompt="Help me find the best product for my needs"><span class="task-icon green">✦</span><span><strong>Find a product</strong><small>Start with what you need</small></span><b>↗</b></button>
-          <button class="task-card" type="button" data-prompt="Compare the best options for me"><span class="task-icon orange">≋</span><span><strong>Compare options</strong><small>See trade-offs clearly</small></span><b>↗</b></button>
-          <button class="task-card image-task" type="button"><span class="task-icon blue">⌁</span><span><strong>Scan an image</strong><small>Drop a product screenshot</small></span><b>↗</b></button>
-        </section>
-
-        <section class="chat-layout">
-          <section class="assistant-card" aria-label="IntentPay product assistant">
-            <div class="assistant-bar"><div class="assistant-identity"><span class="assistant-avatar">✦</span><div><strong>IntentPay assistant</strong><small>Catalog-grounded · safety-first</small></div></div><span class="assistant-mode">DISCOVERY ONLY</span></div>
-            <div class="messages" id="messages" aria-live="polite"></div>
-            <div class="quick-prompts" id="quickPrompts" aria-label="Suggested prompts"><button type="button" data-prompt="Find a smartphone under ₹50000 with a good camera">Phone under ₹50k</button><button type="button" data-prompt="Compare laptops under ₹65000 with 16GB RAM">Compare laptops</button><button type="button" data-prompt="I need headphones with ANC under ₹5000">ANC headphones</button></div>
-            <form class="chat-composer" id="chatForm">
-              <div class="attachment-preview" id="attachmentPreview" hidden><img id="attachmentImage" alt="Attached product image preview"><div><strong id="attachmentName"></strong><small>Image attached for visual search</small></div><button type="button" id="removeAttachment" aria-label="Remove attached image">×</button></div>
-              <div class="drop-target" id="dropTarget" tabindex="0"><input id="chatImageInput" type="file" accept="image/png,image/jpeg,image/webp"><span class="drop-icon">＋</span><span>Drop product image or <u>browse</u></span><small>PNG, JPEG, WebP · 5 MB max</small></div>
-              <textarea id="chatInput" rows="2" maxlength="2000" placeholder="Ask anything about a product…" aria-label="Message the product assistant"></textarea>
-              <div class="composer-footer"><span class="composer-note"><span>⌁</span> Nothing is purchased from chat</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message">Send <span>↗</span></button></div>
-            </form>
-          </section>
-
-          <aside class="chat-sidebar">
-            <div class="sidebar-card brief-card"><div class="card-heading"><div><p class="sidebar-kicker">Live brief</p><h2>Your shopping brief</h2></div><span class="brief-status" id="briefStatus">Listening</span></div><div class="brief-item"><span>Category</span><strong id="briefCategory">Not set yet</strong></div><div class="brief-item"><span>Budget ceiling</span><strong id="briefBudget">Not set yet</strong></div><div class="brief-item"><span>Quantity</span><strong id="briefQuantity">1</strong></div><div class="brief-item"><span>Preferences</span><strong id="briefPreferences">Add in chat</strong></div></div>
-            <div class="sidebar-card flow-card"><p class="sidebar-kicker">Simple by design</p><h2>Three clear steps</h2><div class="flow-item active"><span>01</span><div><strong>Explore</strong><small>Ask, upload, compare</small></div></div><div class="flow-item"><span>02</span><div><strong>Verify</strong><small>Confirm exact item + budget</small></div></div><div class="flow-item"><span>03</span><div><strong>Authorize</strong><small>Trust Gate decides</small></div></div><a class="sidebar-link" href="/">Go to verification →</a></div>
-            <div class="sidebar-card safety-card"><div class="safety-heading"><span>Trust boundary</span><b>ON</b></div><p>Recommendations come from approved catalogs. A displayed price is evidence, never authorization.</p><div class="safety-list"><span><i>✓</i> In-stock products only</span><span><i>✓</i> No image retention</span></div></div>
-          </aside>
-        </section>
-      </div>
-    </main>
+  <div class="ip-backdrop" aria-hidden="true">
+    <div class="ip-grid"></div>
+    <div class="ip-glow ip-glow-a"></div>
+    <div class="ip-glow ip-glow-b"></div>
+    <span class="ip-particle p1"></span>
+    <span class="ip-particle p2"></span>
+    <span class="ip-particle p3"></span>
   </div>
-  <script src="/assets/chat.js" defer></script>
+
+  <header class="ip-topbar">
+    <a class="ip-brand" href="/" aria-label="IntentPay home"><span class="ip-brand-mark">IP</span><span>IntentPay</span></a>
+    <nav class="ip-topnav" aria-label="IntentPay">
+      <a href="/">Home</a>
+      <a href="/catalog">Catalog</a>
+      <a href="/merchant">Merchant login</a>
+    </nav>
+  </header>
+
+  <main class="ip-stage" id="assistantRoot" aria-label="IntentPay AI assistant"></main>
+
+  <script src="/assets/site.js" defer></script>
+  <script src="/assets/razorpay_checkout.js" defer></script>
+  <script src="/assets/assistant.js" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      IntentPayAssistant.mount(document.querySelector("#assistantRoot"), { variant: "fullscreen" });
+    });
+  </script>
 </body>
 </html>
